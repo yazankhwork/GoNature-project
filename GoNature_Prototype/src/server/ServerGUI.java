@@ -49,19 +49,9 @@ public class ServerGUI extends JFrame {
     }
 
     private void startServer() {
-        /*
-         Later:
-         Here we will start the real server.
-         Example:
-         server.listen();
-        */
-
         serverStatusLabel.setText("Server Status: Running");
         connectionStatusLabel.setText("Connection Status: Waiting for client...");
-        addLog("Server started successfully");
-
-        // Temporary test data only
-        updateClientInfo("127.0.0.1", "Localhost-Client");
+        addLog("Server started successfully"); 
     }
 
     private void stopServer() {
@@ -74,8 +64,6 @@ public class ServerGUI extends JFrame {
         clientIpLabel.setText("Client IP: Not connected");
         clientHostLabel.setText("Client Host: Not connected");
         connectionStatusLabel.setText("Connection Status: Disconnected");
-
-        addLog("Server stopped");
     }
 
     public void updateClientInfo(String ip, String host) {
