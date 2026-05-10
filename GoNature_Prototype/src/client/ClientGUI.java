@@ -2,6 +2,8 @@ package client;
 
 import javax.swing.*;
 import java.awt.*;
+import common.ClientRequest;
+import common.Order;
 
 public class ClientGUI extends JFrame {
 
@@ -12,6 +14,7 @@ public class ClientGUI extends JFrame {
     private JTextField subscriberIdField;
     private JTextField dateOfPlacingOrderField;
     private JLabel statusLabel;
+    private PrototypeClient client;
 
     public ClientGUI() {
         setTitle("GoNature - Client GUI");
@@ -68,38 +71,47 @@ public class ClientGUI extends JFrame {
         loadButton.addActionListener(e -> loadOrder());
         updateButton.addActionListener(e -> updateOrder());
         clearButton.addActionListener(e -> clearFields());
+        connectToServer();
     }
+    
+    private void connectToServer() {
+        try {
+            client = new PrototypeClient("localhost", 5555, this);
+            client.openConnection();
 
+            statusLabel.setText("Status: Connected to server");
+
+        } catch (Exception e) {
+            statusLabel.setText("Status: Could not connect to server");
+            System.out.println("Client connection failed: " + e.getMessage());
+        }
+    }
     private void loadOrder() {
-        String orderNumber = orderNumberField.getText();
+        String orderNumberText = orderNumberField.getText();
 
-        if (orderNumber.isEmpty()) {
+        if (orderNumberText.isEmpty()) {
             statusLabel.setText("Status: Please enter order number");
             return;
         }
 
-        /*
-         Later:
-         The client will send LOAD_ORDER request to the server.
-         The server will read the order from the database and return the data.
-        */
+        try {
+            int orderNumber = Integer.parseInt(orderNumberText);
 
-        // Temporary data for GUI test only
-        orderDateField.setText("2026-05-25");
-        numberOfVisitorsField.setText("6");
-        confirmationCodeField.setText("12345");
-        subscriberIdField.setText("2001");
-        dateOfPlacingOrderField.setText("2026-05-01");
+            ClientRequest request = new ClientRequest("LOAD_ORDER", orderNumber);
+            client.sendRequest(request);
 
-        statusLabel.setText("Status: Order loaded successfully");
+            statusLabel.setText("Status: Load request sent");
+
+        } catch (NumberFormatException e) {
+            statusLabel.setText("Status: Order number must be a number");
+        }
     }
-
     private void updateOrder() {
-        String orderNumber = orderNumberField.getText();
+        String orderNumberText = orderNumberField.getText();
         String orderDate = orderDateField.getText();
-        String numberOfVisitors = numberOfVisitorsField.getText();
+        String numberOfVisitorsText = numberOfVisitorsField.getText();
 
-        if (orderNumber.isEmpty()) {
+        if (orderNumberText.isEmpty()) {
             statusLabel.setText("Status: Please enter order number");
             return;
         }
@@ -109,22 +121,41 @@ public class ClientGUI extends JFrame {
             return;
         }
 
-        if (numberOfVisitors.isEmpty()) {
+        if (numberOfVisitorsText.isEmpty()) {
             statusLabel.setText("Status: Please enter number of visitors");
             return;
         }
 
-        /*
-         Later:
-         The client will send UPDATE_ORDER request to the server.
-         Only these fields should be updated:
-         order_date
-         number_of_visitors
-        */
+        try {
+            int orderNumber = Integer.parseInt(orderNumberText);
+            int numberOfVisitors = Integer.parseInt(numberOfVisitorsText);
 
-        statusLabel.setText("Status: Update request sent successfully");
+            ClientRequest request = new ClientRequest(
+                "UPDATE_ORDER",
+                orderNumber,
+                orderDate,
+                numberOfVisitors
+            );
+
+            client.sendRequest(request);
+
+            statusLabel.setText("Status: Update request sent");
+
+        } catch (NumberFormatException e) {
+            statusLabel.setText("Status: Order number and visitors must be numbers");
+        }
     }
-
+    public void displayOrder(Order order) {
+        orderNumberField.setText(String.valueOf(order.getOrderNumber()));
+        orderDateField.setText(order.getOrderDate());
+        numberOfVisitorsField.setText(String.valueOf(order.getNumberOfVisitors()));
+        confirmationCodeField.setText(String.valueOf(order.getConfirmationCode()));
+        subscriberIdField.setText(String.valueOf(order.getSubscriberId()));
+        dateOfPlacingOrderField.setText(order.getDateOfPlacingOrder());
+    }
+    public void showStatus(String message) {
+        statusLabel.setText(message);
+    }
     private void clearFields() {
         orderNumberField.setText("");
         orderDateField.setText("");
@@ -136,10 +167,4 @@ public class ClientGUI extends JFrame {
         statusLabel.setText("Status: Fields cleared");
     }
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            ClientGUI gui = new ClientGUI();
-            gui.setVisible(true);
-        });
-    }
 }
