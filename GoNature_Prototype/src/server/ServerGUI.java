@@ -10,7 +10,8 @@ public class ServerGUI extends JFrame {
     private JLabel clientHostLabel;
     private JLabel connectionStatusLabel;
     private JTextArea logArea;
-
+    private PrototypeServer server;
+    
     public ServerGUI() {
         setTitle("GoNature - Server GUI");
         setSize(600, 450);
@@ -49,9 +50,19 @@ public class ServerGUI extends JFrame {
     }
 
     private void startServer() {
-        serverStatusLabel.setText("Server Status: Running");
-        connectionStatusLabel.setText("Connection Status: Waiting for client...");
-        addLog("Server started successfully"); 
+    	try {
+            serverStatusLabel.setText("Server Status: Running");
+            connectionStatusLabel.setText("Connection Status: Waiting for client...");
+            addLog("Starting server...");
+
+            server = new PrototypeServer(5555, this);
+            server.listen();
+
+        } catch (Exception e) {
+            serverStatusLabel.setText("Server Status: Error");
+            connectionStatusLabel.setText("Connection Status: Failed");
+            addLog("Server failed to start: " + e.getMessage());
+        }
     }
 
     private void stopServer() {

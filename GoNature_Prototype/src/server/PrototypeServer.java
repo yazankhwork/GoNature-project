@@ -4,10 +4,11 @@ import ocsf.server.AbstractServer;
 import ocsf.server.ConnectionToClient;
 
 public class PrototypeServer extends AbstractServer{
-	public PrototypeServer(int port) {
+	private ServerGUI gui;
+	public PrototypeServer(int port, ServerGUI gui) {
 	    super(port);
+	    this.gui = gui;
 	}
-
 	@Override
 	protected void handleMessageFromClient(Object msg, ConnectionToClient client) {
 		// TODO Auto-generated method stub
@@ -19,9 +20,15 @@ public class PrototypeServer extends AbstractServer{
 	}
 	@Override
 	protected void clientConnected(ConnectionToClient client) {
-	    System.out.println("Client connected");
-	    System.out.println("Client IP: " + client.getInetAddress().getHostAddress());
-	    System.out.println("Client Host: " + client.getInetAddress().getHostName());
+		String clientIp = client.getInetAddress().getHostAddress();
+		String clientHost = client.getInetAddress().getHostName();
+		System.out.println("Client connected");
+	    System.out.println("Client IP: " + clientIp);
+	    System.out.println("Client Host: " + clientHost);
 	    System.out.println("Connection Status: Connected");
+
+	    if (gui != null) {
+	        gui.updateClientInfo(clientIp, clientHost);
+	    }
 	}
 }
