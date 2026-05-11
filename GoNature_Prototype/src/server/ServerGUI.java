@@ -66,15 +66,22 @@ public class ServerGUI extends JFrame {
     }
 
     private void stopServer() {
-        /*
-         Later:
-         Here we will stop the real server.
-        */
+        try {
+            if (server != null) {
+                server.close();
+                server = null;
+            }
 
-        serverStatusLabel.setText("Server Status: Stopped");
-        clientIpLabel.setText("Client IP: Not connected");
-        clientHostLabel.setText("Client Host: Not connected");
-        connectionStatusLabel.setText("Connection Status: Disconnected");
+            serverStatusLabel.setText("Server Status: Stopped");
+            clientIpLabel.setText("Client IP: Not connected");
+            clientHostLabel.setText("Client Host: Not connected");
+            connectionStatusLabel.setText("Connection Status: Disconnected");
+
+            addLog("Server stopped");
+
+        } catch (Exception e) {
+            addLog("Failed to stop server: " + e.getMessage());
+        }
     }
 
     public void updateClientInfo(String ip, String host) {
@@ -87,12 +94,5 @@ public class ServerGUI extends JFrame {
 
     public void addLog(String message) {
         logArea.append(message + "\n");
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            ServerGUI gui = new ServerGUI();
-            gui.setVisible(true);
-        });
     }
 }

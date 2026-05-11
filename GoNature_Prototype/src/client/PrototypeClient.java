@@ -1,7 +1,5 @@
 package client;
 
-import java.io.IOException;
-import common.Order;
 import common.ClientRequest;
 import common.ServerResponse;
 import ocsf.client.AbstractClient;
@@ -37,6 +35,9 @@ public class PrototypeClient extends AbstractClient {
 	        sendToServer(request);
 	    } catch (Exception e) {
 	        System.out.println("Failed to send request: " + e.getMessage());
+	        if (gui != null) {
+	            gui.showStatus("Status: Failed to send request");
+	        }
 	    }
 	}
 }

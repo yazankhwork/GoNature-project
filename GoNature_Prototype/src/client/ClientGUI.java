@@ -74,16 +74,23 @@ public class ClientGUI extends JFrame {
         connectToServer();
     }
     
-    private void connectToServer() {
+    private boolean connectToServer() {
+        if (client != null && client.isConnected()) {
+            return true;
+        }
+
         try {
-            client = new PrototypeClient("localhost", 5555, this);
+            client = new PrototypeClient("10.0.0.6", 5555, this);
             client.openConnection();
 
             statusLabel.setText("Status: Connected to server");
+            return true;
 
         } catch (Exception e) {
+            client = null;
             statusLabel.setText("Status: Could not connect to server");
             System.out.println("Client connection failed: " + e.getMessage());
+            return false;
         }
     }
     private void loadOrder() {
@@ -96,7 +103,9 @@ public class ClientGUI extends JFrame {
 
         try {
             int orderNumber = Integer.parseInt(orderNumberText);
-
+            if (!connectToServer()) {
+                return;
+            }
             ClientRequest request = new ClientRequest("LOAD_ORDER", orderNumber);
             client.sendRequest(request);
 
@@ -129,7 +138,9 @@ public class ClientGUI extends JFrame {
         try {
             int orderNumber = Integer.parseInt(orderNumberText);
             int numberOfVisitors = Integer.parseInt(numberOfVisitorsText);
-
+            if (!connectToServer()) {
+                return;
+            }
             ClientRequest request = new ClientRequest(
                 "UPDATE_ORDER",
                 orderNumber,
