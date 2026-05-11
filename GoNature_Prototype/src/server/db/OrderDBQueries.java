@@ -41,7 +41,7 @@ public class OrderDBQueries {
 		String query = "UPDATE `Order` SET order_date = ?, number_of_visitors = ? WHERE order_number = ?";
 
 		try (Connection conn = DBController.connectToDB();
-				java.sql.PreparedStatement ps = conn.prepareStatement(query);) {
+				PreparedStatement ps = conn.prepareStatement(query);) {
 			ps.setString(1, newDate);
 			ps.setInt(2, newVisitors);
 			ps.setInt(3, orderNumber);
@@ -50,16 +50,18 @@ public class OrderDBQueries {
 
 			if (rowsUpdated > 0) {
 				System.out.println("Order updated successfully");
+				return true;
 			} else {
 				System.out.println("No order found with this order number");
+				return false;
 			}
 
 		} catch (SQLException ex) {
 			System.out.println("SQLException: " + ex.getMessage());
 			System.out.println("SQLState: " + ex.getSQLState());
 			System.out.println("VendorError: " + ex.getErrorCode());
+			return false;
 		}
-		return false;
 	}
 
 	public static Order getOrderByNumber(int orderNumber) {
