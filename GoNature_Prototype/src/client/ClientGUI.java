@@ -80,7 +80,7 @@ public class ClientGUI extends JFrame {
         }
 
         try {
-            client = new PrototypeClient("10.0.0.6", 5555, this);
+            client = new PrototypeClient("localhost", 5555, this);
             client.openConnection();
 
             statusLabel.setText("Status: Connected to server");
