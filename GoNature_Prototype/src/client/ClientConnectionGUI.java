@@ -8,8 +8,6 @@ public class ClientConnectionGUI extends JFrame {
     private JTextField ipField;
     private JLabel statusLabel;
 
-    private static final int SERVER_PORT = 5555;
-
     public ClientConnectionGUI() {
         setTitle("GoNature - Connect To Server");
         setSize(450, 220);
@@ -37,10 +35,10 @@ public class ClientConnectionGUI extends JFrame {
 
         add(panel);
 
-        connectButton.addActionListener(e -> checkConnectionAndOpenClient());
+        connectButton.addActionListener(e -> openClientGUI());
     }
 
-    private void checkConnectionAndOpenClient() {
+    private void openClientGUI() {
         String serverIP = ipField.getText().trim();
 
         if (serverIP.isEmpty()) {
@@ -48,41 +46,16 @@ public class ClientConnectionGUI extends JFrame {
             return;
         }
 
-        PrototypeClient testClient = null;
+        /*
+         * Important:
+         * Do NOT connect here.
+         * This screen only takes the IP.
+         * The real connection happens only once inside ClientGUI.
+         */
 
-        try {
-            statusLabel.setText("Status: Trying to connect...");
+        dispose();
 
-            testClient = new PrototypeClient(serverIP, SERVER_PORT, null);
-            testClient.openConnection();
-
-            statusLabel.setText("Status: Connected successfully");
-
-            try {
-                testClient.closeConnection();
-            } catch (Exception ex) {
-                System.out.println("Could not close test connection: " + ex.getMessage());
-            }
-
-            dispose();
-
-            ClientGUI clientGUI = new ClientGUI(serverIP);
-            clientGUI.setVisible(true);
-
-        } catch (Exception e) {
-            statusLabel.setText("Status: Wrong IP or server is not running");
-
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Cannot connect to server.\n\nPlease check:\n"
-                            + "1. The IP address is correct\n"
-                            + "2. The server is running\n"
-                            + "3. The port is 5555",
-                    "Connection Failed",
-                    JOptionPane.ERROR_MESSAGE
-            );
-        }
+        ClientGUI clientGUI = new ClientGUI(serverIP);
+        clientGUI.setVisible(true);
     }
-
-	
 }
