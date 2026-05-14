@@ -2,6 +2,11 @@ package client;
 
 import javax.swing.*;
 import java.awt.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.regex.Pattern;
+
 import common.ClientRequest;
 import common.Order;
 
@@ -45,10 +50,10 @@ public class ClientGUI extends JFrame {
         panel.add(new JLabel("Order Number:"));
         panel.add(orderNumberField);
 
-        panel.add(new JLabel("Order Date:"));
+        panel.add(new JLabel("Order Date yyyy-MM-dd:"));
         panel.add(orderDateField);
 
-        panel.add(new JLabel("Number Of Visitors:"));
+        panel.add(new JLabel("Number Of Visitors 1-15:"));
         panel.add(numberOfVisitorsField);
 
         panel.add(new JLabel("Confirmation Code:"));
@@ -71,9 +76,10 @@ public class ClientGUI extends JFrame {
         loadButton.addActionListener(e -> loadOrder());
         updateButton.addActionListener(e -> updateOrder());
         clearButton.addActionListener(e -> clearFields());
+
         connectToServer();
     }
-    
+
     private boolean connectToServer() {
         if (client != null && client.isConnected()) {
             return true;
@@ -93,35 +99,49 @@ public class ClientGUI extends JFrame {
             return false;
         }
     }
+
     private void loadOrder() {
-        String orderNumberText = orderNumberField.getText();
+        String orderNumberText = orderNumberField.getText().trim();
 
         if (orderNumberText.isEmpty()) {
             statusLabel.setText("Status: Please enter order number");
             return;
         }
 
+        if (!isOnlyNumbers(orderNumberText)) {
+            statusLabel.setText("Status: Order number must contain numbers only");
+            return;
+        }
+
         try {
             int orderNumber = Integer.parseInt(orderNumberText);
+
             if (!connectToServer()) {
                 return;
             }
+
             ClientRequest request = new ClientRequest("LOAD_ORDER", orderNumber);
             client.sendRequest(request);
 
             statusLabel.setText("Status: Load request sent");
 
         } catch (NumberFormatException e) {
-            statusLabel.setText("Status: Order number must be a number");
+            statusLabel.setText("Status: Invalid order number");
         }
     }
+
     private void updateOrder() {
-        String orderNumberText = orderNumberField.getText();
-        String orderDate = orderDateField.getText();
-        String numberOfVisitorsText = numberOfVisitorsField.getText();
+        String orderNumberText = orderNumberField.getText().trim();
+        String orderDate = orderDateField.getText().trim();
+        String numberOfVisitorsText = numberOfVisitorsField.getText().trim();
 
         if (orderNumberText.isEmpty()) {
             statusLabel.setText("Status: Please enter order number");
+            return;
+        }
+
+        if (!isOnlyNumbers(orderNumberText)) {
+            statusLabel.setText("Status: Order number must contain numbers only");
             return;
         }
 
@@ -130,22 +150,44 @@ public class ClientGUI extends JFrame {
             return;
         }
 
+        if (!isValidDateFormat(orderDate)) {
+            statusLabel.setText("Status: Date must be exactly yyyy-MM-dd");
+            return;
+        }
+
+        if (isDateInPast(orderDate)) {
+            statusLabel.setText("Status: Order date cannot be in the past");
+            return;
+        }
+
         if (numberOfVisitorsText.isEmpty()) {
             statusLabel.setText("Status: Please enter number of visitors");
+            return;
+        }
+
+        if (!isOnlyNumbers(numberOfVisitorsText)) {
+            statusLabel.setText("Status: Number of visitors must contain numbers only");
             return;
         }
 
         try {
             int orderNumber = Integer.parseInt(orderNumberText);
             int numberOfVisitors = Integer.parseInt(numberOfVisitorsText);
+
+            if (numberOfVisitors < 1 || numberOfVisitors > 15) {
+                statusLabel.setText("Status: Number of visitors must be between 1 and 15");
+                return;
+            }
+
             if (!connectToServer()) {
                 return;
             }
+
             ClientRequest request = new ClientRequest(
-                "UPDATE_ORDER",
-                orderNumber,
-                orderDate,
-                numberOfVisitors
+                    "UPDATE_ORDER",
+                    orderNumber,
+                    orderDate,
+                    numberOfVisitors
             );
 
             client.sendRequest(request);
@@ -153,9 +195,41 @@ public class ClientGUI extends JFrame {
             statusLabel.setText("Status: Update request sent");
 
         } catch (NumberFormatException e) {
-            statusLabel.setText("Status: Order number and visitors must be numbers");
+            statusLabel.setText("Status: Invalid number input");
         }
     }
+
+    private boolean isOnlyNumbers(String text) {
+        return text.matches("\\d+");
+    }
+
+    private boolean isValidDateFormat(String dateText) {
+        if (!Pattern.matches("\\d{4}-\\d{2}-\\d{2}", dateText)) {
+            return false;
+        }
+
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd");
+            formatter = formatter.withResolverStyle(java.time.format.ResolverStyle.STRICT);
+
+            LocalDate.parse(dateText, formatter);
+            return true;
+
+        } catch (DateTimeParseException e) {
+            return false;
+        }
+    }
+
+    private boolean isDateInPast(String dateText) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd");
+        formatter = formatter.withResolverStyle(java.time.format.ResolverStyle.STRICT);
+
+        LocalDate orderDate = LocalDate.parse(dateText, formatter);
+        LocalDate today = LocalDate.now();
+
+        return orderDate.isBefore(today);
+    }
+
     public void displayOrder(Order order) {
         orderNumberField.setText(String.valueOf(order.getOrderNumber()));
         orderDateField.setText(order.getOrderDate());
@@ -164,9 +238,11 @@ public class ClientGUI extends JFrame {
         subscriberIdField.setText(String.valueOf(order.getSubscriberId()));
         dateOfPlacingOrderField.setText(order.getDateOfPlacingOrder());
     }
+
     public void showStatus(String message) {
         statusLabel.setText(message);
     }
+
     private void clearFields() {
         orderNumberField.setText("");
         orderDateField.setText("");
@@ -177,5 +253,4 @@ public class ClientGUI extends JFrame {
 
         statusLabel.setText("Status: Fields cleared");
     }
-
 }
