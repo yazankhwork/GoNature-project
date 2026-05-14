@@ -21,7 +21,16 @@ public class ClientGUI extends JFrame {
     private JLabel statusLabel;
     private PrototypeClient client;
 
+    private String serverHost;
+    private static final int SERVER_PORT = 5555;
+
     public ClientGUI() {
+        this("localhost");
+    }
+
+    public ClientGUI(String serverHost) {
+        this.serverHost = serverHost;
+
         setTitle("GoNature - Client GUI");
         setSize(600, 400);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -86,10 +95,10 @@ public class ClientGUI extends JFrame {
         }
 
         try {
-            client = new PrototypeClient("localhost", 5555, this);
+            client = new PrototypeClient(serverHost, SERVER_PORT, this);
             client.openConnection();
 
-            statusLabel.setText("Status: Connected to server");
+            statusLabel.setText("Status: Connected to server " + serverHost);
             return true;
 
         } catch (Exception e) {
