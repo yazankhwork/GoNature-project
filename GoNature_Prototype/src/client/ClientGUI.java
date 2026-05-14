@@ -18,10 +18,12 @@ public class ClientGUI extends JFrame {
     private JTextField confirmationCodeField;
     private JTextField subscriberIdField;
     private JTextField dateOfPlacingOrderField;
-    private JLabel statusLabel;
-    private PrototypeClient client;
 
+    private JLabel statusLabel;
+
+    private PrototypeClient client;
     private String serverHost;
+
     private static final int SERVER_PORT = 5555;
 
     public ClientGUI() {
@@ -32,11 +34,11 @@ public class ClientGUI extends JFrame {
         this.serverHost = serverHost;
 
         setTitle("GoNature - Client GUI");
-        setSize(600, 400);
+        setSize(650, 450);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        JPanel panel = new JPanel(new GridLayout(8, 2, 10, 10));
+        JPanel panel = new JPanel(new GridLayout(9, 2, 10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         orderNumberField = new JTextField();
@@ -53,6 +55,7 @@ public class ClientGUI extends JFrame {
         JButton loadButton = new JButton("Load Order");
         JButton updateButton = new JButton("Update Order");
         JButton clearButton = new JButton("Clear");
+        JButton endRunningButton = new JButton("End Running");
 
         statusLabel = new JLabel("Status: Ready");
 
@@ -78,13 +81,17 @@ public class ClientGUI extends JFrame {
         panel.add(updateButton);
 
         panel.add(clearButton);
+        panel.add(endRunningButton);
+
         panel.add(statusLabel);
+        panel.add(new JLabel(""));
 
         add(panel);
 
         loadButton.addActionListener(e -> loadOrder());
         updateButton.addActionListener(e -> updateOrder());
         clearButton.addActionListener(e -> clearFields());
+        endRunningButton.addActionListener(e -> endRunning());
 
         connectToServer();
     }
@@ -104,7 +111,22 @@ public class ClientGUI extends JFrame {
         } catch (Exception e) {
             client = null;
             statusLabel.setText("Status: Could not connect to server");
-            System.out.println("Client connection failed: " + e.getMessage());
+
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Cannot connect to server.\n\nPlease check:\n" +
+                            "1. The IP address is correct\n" +
+                            "2. The server is running\n" +
+                            "3. The port is 5555",
+                    "Connection Failed",
+                    JOptionPane.ERROR_MESSAGE
+            );
+
+            dispose();
+
+            ClientConnectionGUI connectionGUI = new ClientConnectionGUI();
+            connectionGUI.setVisible(true);
+
             return false;
         }
     }
@@ -129,7 +151,9 @@ public class ClientGUI extends JFrame {
                 return;
             }
 
-            ClientRequest request = new ClientRequest("LOAD_ORDER", orderNumber);
+            ClientRequest request =
+                    new ClientRequest("LOAD_ORDER", orderNumber);
+
             client.sendRequest(request);
 
             statusLabel.setText("Status: Load request sent");
@@ -192,12 +216,13 @@ public class ClientGUI extends JFrame {
                 return;
             }
 
-            ClientRequest request = new ClientRequest(
-                    "UPDATE_ORDER",
-                    orderNumber,
-                    orderDate,
-                    numberOfVisitors
-            );
+            ClientRequest request =
+                    new ClientRequest(
+                            "UPDATE_ORDER",
+                            orderNumber,
+                            orderDate,
+                            numberOfVisitors
+                    );
 
             client.sendRequest(request);
 
@@ -205,6 +230,23 @@ public class ClientGUI extends JFrame {
 
         } catch (NumberFormatException e) {
             statusLabel.setText("Status: Invalid number input");
+        }
+    }
+
+    private void endRunning() {
+        try {
+            if (client != null && client.isConnected()) {
+                client.closeConnection();
+                client = null;
+            }
+
+            statusLabel.setText("Status: Client disconnected");
+
+            dispose();
+
+        } catch (Exception e) {
+            statusLabel.setText("Status: Failed to end running");
+            System.out.println("Failed to close client: " + e.getMessage());
         }
     }
 
@@ -218,8 +260,11 @@ public class ClientGUI extends JFrame {
         }
 
         try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd");
-            formatter = formatter.withResolverStyle(java.time.format.ResolverStyle.STRICT);
+            DateTimeFormatter formatter =
+                    DateTimeFormatter.ofPattern("uuuu-MM-dd");
+
+            formatter =
+                    formatter.withResolverStyle(java.time.format.ResolverStyle.STRICT);
 
             LocalDate.parse(dateText, formatter);
             return true;
@@ -230,8 +275,11 @@ public class ClientGUI extends JFrame {
     }
 
     private boolean isDateInPast(String dateText) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd");
-        formatter = formatter.withResolverStyle(java.time.format.ResolverStyle.STRICT);
+        DateTimeFormatter formatter =
+                DateTimeFormatter.ofPattern("uuuu-MM-dd");
+
+        formatter =
+                formatter.withResolverStyle(java.time.format.ResolverStyle.STRICT);
 
         LocalDate orderDate = LocalDate.parse(dateText, formatter);
         LocalDate today = LocalDate.now();
@@ -249,7 +297,7 @@ public class ClientGUI extends JFrame {
     }
 
     public void showStatus(String message) {
-        statusLabel.setText(message);
+        SwingUtilities.invokeLater(() -> statusLabel.setText(message));
     }
 
     private void clearFields() {
