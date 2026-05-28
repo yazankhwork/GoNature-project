@@ -9,7 +9,7 @@ public class DBController {
 			"jdbc:mysql://localhost:3306/gonature_db?serverTimezone=Asia/Jerusalem&useSSL=false&allowPublicKeyRetrieval=true";
 
     private static final String USER = "root";
-    private static final String PASSWORD = "Rabea21270";
+    private static final String PASSWORD = "Georgesini2001";
 
     public static Connection connectToDB() throws SQLException {
         return DriverManager.getConnection(URL, USER, PASSWORD);
