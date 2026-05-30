@@ -10,98 +10,80 @@ import java.util.regex.Pattern;
 import common.ClientRequest;
 import common.Order;
 
-/**
- * ClientGUI is the main client window.
- * It connects to the server, loads orders, updates orders,
- * validates user input, displays order details, and disconnects safely.
- */
 public class ClientGUI extends JFrame {
 
-    private JTextField orderNumberField;
-    private JTextField orderDateField;
-    private JTextField numberOfVisitorsField;
-    private JTextField confirmationCodeField;
-    private JTextField subscriberIdField;
-    private JTextField dateOfPlacingOrderField;
+    private JTextField orderNumberField; // an order number field
+    private JTextField orderDateField; // an order Date field
+    private JTextField numberOfVisitorsField; // a field for the number of the visitors 
+    private JTextField confirmationCodeField; // a field for the confirmation code
+    private JTextField subscriberIdField; // a field for subscriber id
+    private JTextField dateOfPlacingOrderField; // the date for which the order was placed 
 
-    private JLabel statusLabel;
+    private JLabel statusLabel; //a label for status 
 
-    private PrototypeClient client;
-    private String serverHost;
+    private PrototypeClient client; //an instance of PrototypeClient
+    private String serverHost; // the index for connecting the other hardware to the current hardware e
 
     private static final int SERVER_PORT = 5555;
 
     public ClientGUI() {
-        this("localhost");
+        this("localhost"); //call for line 33 
     }
 
     public ClientGUI(String serverHost) {
         this.serverHost = serverHost;
-
+        //init GUI
         setTitle("GoNature - Client GUI");
         setSize(650, 450);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
-
         JPanel panel = new JPanel(new GridLayout(9, 2, 10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
         orderNumberField = new JTextField();
         orderDateField = new JTextField();
         numberOfVisitorsField = new JTextField();
         confirmationCodeField = new JTextField();
         subscriberIdField = new JTextField();
         dateOfPlacingOrderField = new JTextField();
-
         confirmationCodeField.setEditable(false);
         subscriberIdField.setEditable(false);
         dateOfPlacingOrderField.setEditable(false);
-
         JButton loadButton = new JButton("Load Order");
         JButton updateButton = new JButton("Update Order");
         JButton clearButton = new JButton("Clear");
         JButton endRunningButton = new JButton("End Running");
-
         statusLabel = new JLabel("Status: Ready");
-
         panel.add(new JLabel("Order Number:"));
         panel.add(orderNumberField);
-
         panel.add(new JLabel("Order Date yyyy-MM-dd:"));
         panel.add(orderDateField);
-
         panel.add(new JLabel("Number Of Visitors 1-15:"));
         panel.add(numberOfVisitorsField);
-
         panel.add(new JLabel("Confirmation Code:"));
         panel.add(confirmationCodeField);
-
         panel.add(new JLabel("Subscriber ID:"));
         panel.add(subscriberIdField);
-
         panel.add(new JLabel("Date Of Placing Order:"));
         panel.add(dateOfPlacingOrderField);
-
         panel.add(loadButton);
         panel.add(updateButton);
-
         panel.add(clearButton);
         panel.add(endRunningButton);
-
         panel.add(statusLabel);
         panel.add(new JLabel(""));
-
         add(panel);
-
-        loadButton.addActionListener(e -> loadOrder());
+        
+        //aemots code shel loadOrder , updateButton , clearButton , endRunningButton
+        loadButton.addActionListener(e -> loadOrder()); 
         updateButton.addActionListener(e -> updateOrder());
         clearButton.addActionListener(e -> clearFields());
         endRunningButton.addActionListener(e -> endRunning());
 
-        connectToServer();
+        connectToServer();  //connect to server at the end 
     }
 
-    // Connects the client to the server
+    
+    //connect to server
     private boolean connectToServer() {
         if (client != null && client.isConnected()) {
             return true;
@@ -118,7 +100,7 @@ public class ClientGUI extends JFrame {
             client = null;
             statusLabel.setText("Status: Could not connect to server");
 
-            JOptionPane.showMessageDialog(
+            JOptionPane.showMessageDialog( 
                     this,
                     "Cannot connect to server.\n\nPlease check:\n" +
                             "1. The IP address is correct\n" +
@@ -137,8 +119,7 @@ public class ClientGUI extends JFrame {
         }
     }
 
-    // Sends a request to load an order from the server
-    private void loadOrder() {
+    private void loadOrder() { // a function to load order 
         String orderNumberText = orderNumberField.getText().trim();
 
         if (orderNumberText.isEmpty()) {
@@ -158,7 +139,9 @@ public class ClientGUI extends JFrame {
                 return;
             }
 
-            ClientRequest request = new ClientRequest("LOAD_ORDER", orderNumber);
+            ClientRequest request =
+                    new ClientRequest("LOAD_ORDER", orderNumber);
+
             client.sendRequest(request);
 
             statusLabel.setText("Status: Load request sent");
@@ -168,8 +151,7 @@ public class ClientGUI extends JFrame {
         }
     }
 
-    // Validates input and sends an update request to the server
-    private void updateOrder() {
+    private void updateOrder() { //a function to update order  
         String orderNumberText = orderNumberField.getText().trim();
         String orderDate = orderDateField.getText().trim();
         String numberOfVisitorsText = numberOfVisitorsField.getText().trim();
@@ -222,12 +204,13 @@ public class ClientGUI extends JFrame {
                 return;
             }
 
-            ClientRequest request = new ClientRequest(
-                    "UPDATE_ORDER",
-                    orderNumber,
-                    orderDate,
-                    numberOfVisitors
-            );
+            ClientRequest request =
+                    new ClientRequest(
+                            "UPDATE_ORDER",
+                            orderNumber,
+                            orderDate,
+                            numberOfVisitors
+                    );
 
             client.sendRequest(request);
 
@@ -238,8 +221,7 @@ public class ClientGUI extends JFrame {
         }
     }
 
-    // Disconnects the client and closes the window
-    private void endRunning() {
+    private void endRunning() { //a function that checks if the client has not connected yet to server 
         try {
             if (client != null && client.isConnected()) {
                 client.closeConnection();
@@ -247,6 +229,7 @@ public class ClientGUI extends JFrame {
             }
 
             statusLabel.setText("Status: Client disconnected");
+
             dispose();
 
         } catch (Exception e) {
@@ -255,12 +238,11 @@ public class ClientGUI extends JFrame {
         }
     }
 
-    // Checks if the text contains numbers only
-    private boolean isOnlyNumbers(String text) {
+    private boolean isOnlyNumbers(String text) { //a function that checks if the string contains only numbers 
         return text.matches("\\d+");
     }
-
-    // Checks if the date format is valid: yyyy-MM-dd
+    
+//a function that checks if the date is correct sytnax 
     private boolean isValidDateFormat(String dateText) {
         if (!Pattern.matches("\\d{4}-\\d{2}-\\d{2}", dateText)) {
             return false;
@@ -281,7 +263,8 @@ public class ClientGUI extends JFrame {
         }
     }
 
-    // Checks if the order date is before today
+    
+    //a function that checks if the order date has been reservered 
     private boolean isDateInPast(String dateText) {
         DateTimeFormatter formatter =
                 DateTimeFormatter.ofPattern("uuuu-MM-dd");
@@ -295,7 +278,8 @@ public class ClientGUI extends JFrame {
         return orderDate.isBefore(today);
     }
 
-    // Displays order details received from the server
+    
+    //a functions to display order 
     public void displayOrder(Order order) {
         orderNumberField.setText(String.valueOf(order.getOrderNumber()));
         orderDateField.setText(order.getOrderDate());
@@ -304,13 +288,11 @@ public class ClientGUI extends JFrame {
         subscriberIdField.setText(String.valueOf(order.getSubscriberId()));
         dateOfPlacingOrderField.setText(order.getDateOfPlacingOrder());
     }
-
-    // Updates the status label safely in Swing
+//a function to show status 
     public void showStatus(String message) {
         SwingUtilities.invokeLater(() -> statusLabel.setText(message));
     }
-
-    // Clears all fields in the GUI
+//a function to clear fields
     private void clearFields() {
         orderNumberField.setText("");
         orderDateField.setText("");
