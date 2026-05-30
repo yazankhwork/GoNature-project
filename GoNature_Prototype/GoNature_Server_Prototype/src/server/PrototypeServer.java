@@ -11,15 +11,18 @@ import server.db.OrderDBQueries;
 import ocsf.server.AbstractServer;
 import ocsf.server.ConnectionToClient;
 
+   // Main server class that handles client requests
+   // and communicates with the database
+
 public class PrototypeServer extends AbstractServer {
 
     private ServerGUI gui;
-
+   //Creates a new server instance
     public PrototypeServer(int port, ServerGUI gui) {
         super(port);
         this.gui = gui;
     }
-
+   //Handles incoming messages from clients
     @Override
     protected void handleMessageFromClient(Object msg, ConnectionToClient client) {
 
@@ -38,7 +41,7 @@ public class PrototypeServer extends AbstractServer {
             }
         }
     }
-
+   //Loads an order from the database
     private void handleLoadOrder(ClientRequest request, ConnectionToClient client) {
 
         Order order = OrderDBQueries.getOrderByNumber(request.getOrderNumber());
@@ -63,7 +66,7 @@ public class PrototypeServer extends AbstractServer {
             System.out.println("Failed to send response to client: " + e.getMessage());
         }
     }
-
+   //Updates an existing order
     private void handleUpdateOrder(ClientRequest request, ConnectionToClient client) {
 
         boolean updated = OrderDBQueries.updateOrder(
@@ -95,17 +98,17 @@ public class PrototypeServer extends AbstractServer {
             System.out.println("Failed to send response to client: " + e.getMessage());
         }
     }
-
+   //Called when the server starts
     @Override
     protected void serverStarted() {
         System.out.println("Server started and listening on port " + getPort());
     }
-
+   //Called when the server stops
     @Override
     protected void serverStopped() {
         System.out.println("Server stopped");
     }
-
+   //Called when a client connects
     @Override
     protected void clientConnected(ConnectionToClient client) {
 
@@ -121,7 +124,7 @@ public class PrototypeServer extends AbstractServer {
             gui.clientConnected(clientIp, clientHost);
         }
     }
-
+   //Called when a client disconnects
     @Override
     synchronized protected void clientDisconnected(ConnectionToClient client) {
 
@@ -131,7 +134,7 @@ public class PrototypeServer extends AbstractServer {
             gui.clientDisconnected();
         }
     }
-
+   //Handles client connection exceptions
     @Override
     synchronized protected void clientException(ConnectionToClient client, Throwable exception) {
 
