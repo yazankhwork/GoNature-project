@@ -10,6 +10,11 @@ import java.util.regex.Pattern;
 import common.ClientRequest;
 import common.Order;
 
+/**
+ * ClientGUI is the main client window.
+ * It connects to the server, loads orders, updates orders,
+ * validates user input, displays order details, and disconnects safely.
+ */
 public class ClientGUI extends JFrame {
 
     private JTextField orderNumberField;
@@ -96,6 +101,7 @@ public class ClientGUI extends JFrame {
         connectToServer();
     }
 
+    // Connects the client to the server
     private boolean connectToServer() {
         if (client != null && client.isConnected()) {
             return true;
@@ -131,6 +137,7 @@ public class ClientGUI extends JFrame {
         }
     }
 
+    // Sends a request to load an order from the server
     private void loadOrder() {
         String orderNumberText = orderNumberField.getText().trim();
 
@@ -151,9 +158,7 @@ public class ClientGUI extends JFrame {
                 return;
             }
 
-            ClientRequest request =
-                    new ClientRequest("LOAD_ORDER", orderNumber);
-
+            ClientRequest request = new ClientRequest("LOAD_ORDER", orderNumber);
             client.sendRequest(request);
 
             statusLabel.setText("Status: Load request sent");
@@ -163,6 +168,7 @@ public class ClientGUI extends JFrame {
         }
     }
 
+    // Validates input and sends an update request to the server
     private void updateOrder() {
         String orderNumberText = orderNumberField.getText().trim();
         String orderDate = orderDateField.getText().trim();
@@ -216,13 +222,12 @@ public class ClientGUI extends JFrame {
                 return;
             }
 
-            ClientRequest request =
-                    new ClientRequest(
-                            "UPDATE_ORDER",
-                            orderNumber,
-                            orderDate,
-                            numberOfVisitors
-                    );
+            ClientRequest request = new ClientRequest(
+                    "UPDATE_ORDER",
+                    orderNumber,
+                    orderDate,
+                    numberOfVisitors
+            );
 
             client.sendRequest(request);
 
@@ -233,6 +238,7 @@ public class ClientGUI extends JFrame {
         }
     }
 
+    // Disconnects the client and closes the window
     private void endRunning() {
         try {
             if (client != null && client.isConnected()) {
@@ -241,7 +247,6 @@ public class ClientGUI extends JFrame {
             }
 
             statusLabel.setText("Status: Client disconnected");
-
             dispose();
 
         } catch (Exception e) {
@@ -250,10 +255,12 @@ public class ClientGUI extends JFrame {
         }
     }
 
+    // Checks if the text contains numbers only
     private boolean isOnlyNumbers(String text) {
         return text.matches("\\d+");
     }
 
+    // Checks if the date format is valid: yyyy-MM-dd
     private boolean isValidDateFormat(String dateText) {
         if (!Pattern.matches("\\d{4}-\\d{2}-\\d{2}", dateText)) {
             return false;
@@ -274,6 +281,7 @@ public class ClientGUI extends JFrame {
         }
     }
 
+    // Checks if the order date is before today
     private boolean isDateInPast(String dateText) {
         DateTimeFormatter formatter =
                 DateTimeFormatter.ofPattern("uuuu-MM-dd");
@@ -287,6 +295,7 @@ public class ClientGUI extends JFrame {
         return orderDate.isBefore(today);
     }
 
+    // Displays order details received from the server
     public void displayOrder(Order order) {
         orderNumberField.setText(String.valueOf(order.getOrderNumber()));
         orderDateField.setText(order.getOrderDate());
@@ -296,10 +305,12 @@ public class ClientGUI extends JFrame {
         dateOfPlacingOrderField.setText(order.getDateOfPlacingOrder());
     }
 
+    // Updates the status label safely in Swing
     public void showStatus(String message) {
         SwingUtilities.invokeLater(() -> statusLabel.setText(message));
     }
 
+    // Clears all fields in the GUI
     private void clearFields() {
         orderNumberField.setText("");
         orderDateField.setText("");
