@@ -1,5 +1,6 @@
 package server;
-
+   //Graphical user interface for managing the server.
+   //Displays server status, client information, and logs
 import javax.swing.*;
 import java.awt.*;
 
@@ -18,7 +19,7 @@ public class ServerGUI extends JFrame {
 
     private static final int SERVER_PORT = 5555;
     private static final int NO_CLIENT_TIMEOUT = 30000;
-
+   //Creates and initializes the server GUI
     public ServerGUI() {
         setTitle("GoNature - Server GUI");
         setSize(600, 450);
@@ -55,7 +56,7 @@ public class ServerGUI extends JFrame {
         stopButton.addActionListener(e -> stopServer());
         clearLogButton.addActionListener(e -> logArea.setText(""));
     }
-
+   //Starts the server and waits for client connections
     private void startServer() {
         try {
             if (server != null) {
@@ -85,7 +86,7 @@ public class ServerGUI extends JFrame {
             addLog("Server failed to start: " + e.getMessage());
         }
     }
-
+   //Starts a timer that stops the server if no client connects
     private void startNoClientTimer() {
         stopNoClientTimer();
 
@@ -100,14 +101,14 @@ public class ServerGUI extends JFrame {
         noClientTimer.setRepeats(false);
         noClientTimer.start();
     }
-
+   //Stops the no-client timer
     private void stopNoClientTimer() {
         if (noClientTimer != null) {
             noClientTimer.stop();
             noClientTimer = null;
         }
     }
-
+   //Stops the server and resets the GUI
     private void stopServer() {
         try {
             stopNoClientTimer();
@@ -130,7 +131,7 @@ public class ServerGUI extends JFrame {
             addLog("Failed to stop server: " + e.getMessage());
         }
     }
-
+   //Updates the GUI when a client connects
     public void clientConnected(String ip, String host) {
         SwingUtilities.invokeLater(() -> {
             hasConnectedClient = true;
@@ -144,7 +145,7 @@ public class ServerGUI extends JFrame {
             addLog("Timer canceled. Server will keep running.");
         });
     }
-
+   //Updates the GUI when a client disconnects
     public void clientDisconnected() {
         SwingUtilities.invokeLater(() -> {
             hasConnectedClient = false;
@@ -159,7 +160,7 @@ public class ServerGUI extends JFrame {
             startNoClientTimer();
         });
     }
-
+   //Adds a message to the server log area
     public void addLog(String message) {
         SwingUtilities.invokeLater(() -> logArea.append(message + "\n"));
     }
