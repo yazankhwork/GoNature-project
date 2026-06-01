@@ -2,6 +2,8 @@ package server;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import common.Booking;
 
 public class DatabaseController {
@@ -21,6 +23,18 @@ public class DatabaseController {
             } catch (SQLException e) { /* Column exists */ }
             
         } catch (SQLException e) { System.err.println("DB Connection Error: " + e.getMessage()); }
+    }
+    
+    public int countVisitorsAt(String parkName, LocalDate date, LocalTime time) {
+        String query = "SELECT SUM(visitors_count) FROM bookings WHERE park_name = ? AND visit_date = ? AND visit_time = ? AND status != 'Cancelled'";
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setString(1, parkName);
+            ps.setDate(2, Date.valueOf(date));
+            ps.setTime(3, Time.valueOf(time));
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) { e.printStackTrace(); }
+        return 0;
     }
 
     public String loginVisitor(String visitorId, String password) {
