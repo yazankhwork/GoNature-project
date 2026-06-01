@@ -26,7 +26,7 @@ public class DatabaseController {
     }
     
     public int countVisitorsAt(String parkName, LocalDate date, LocalTime time) {
-        String query = "SELECT SUM(visitors_count) FROM bookings WHERE park_name = ? AND visit_date = ? AND visit_time = ? AND status != 'Cancelled'";
+        String query = "SELECT SUM(visitors_count) FROM bookings WHERE park_name = ? AND visit_date = ? AND visit_time = ? AND status != 'Cancelled' AND status != 'Waiting List'";
         try (PreparedStatement ps = connection.prepareStatement(query)) {
             ps.setString(1, parkName);
             ps.setDate(2, Date.valueOf(date));
@@ -35,6 +35,45 @@ public class DatabaseController {
             if (rs.next()) return rs.getInt(1);
         } catch (SQLException e) { e.printStackTrace(); }
         return 0;
+    }
+
+    public Booking getBookingById(int bookingId) {
+        String query = "SELECT * FROM bookings WHERE booking_id = ?";
+        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+            pstmt.setInt(1, bookingId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return new Booking(rs.getInt("booking_id"), rs.getString("visitor_id"), rs.getString("park_name"), rs.getDate("visit_date").toLocalDate(), rs.getTime("visit_time").toLocalTime(), rs.getInt("visitors_count"), rs.getString("status"));
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return null;
+    }
+
+    public boolean claimWaitingSpots(int bookingId, int spotsToTake) {
+        Booking oldB = getBookingById(bookingId);
+        if (oldB == null) return false;
+        
+        try {
+            if (spotsToTake == oldB.getVisitorsCount()) {
+                String query = "UPDATE bookings SET status = 'Pending', total_price = ? WHERE booking_id = ?";
+                try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+                    pstmt.setInt(1, spotsToTake * 30);
+                    pstmt.setInt(2, bookingId);
+                    return pstmt.executeUpdate() > 0;
+                }
+            } else {
+                String updateQuery = "UPDATE bookings SET visitors_count = ? WHERE booking_id = ?";
+                try (PreparedStatement pstmt = connection.prepareStatement(updateQuery)) {
+                    pstmt.setInt(1, oldB.getVisitorsCount() - spotsToTake);
+                    pstmt.setInt(2, bookingId);
+                    pstmt.executeUpdate();
+                }
+                
+                Booking newB = new Booking(0, oldB.getVisitorId(), oldB.getParkName(), oldB.getVisitDate(), oldB.getVisitTime(), spotsToTake, "Pending");
+                return saveBooking(newB);
+            }
+        } catch (Exception e) { e.printStackTrace(); return false; }
     }
 
     public String loginVisitor(String visitorId, String password) {
@@ -67,7 +106,7 @@ public class DatabaseController {
     }
 
     public boolean saveBooking(Booking b) {
-        int totalPrice = b.getVisitorsCount() * 30; // 30 ILS per ticket
+        int totalPrice = b.getVisitorsCount() * 30;
         String query = "INSERT INTO bookings (visitor_id, park_name, visit_date, visit_time, visitors_count, status, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement pstmt = connection.prepareStatement(query)) {
             pstmt.setString(1, b.getVisitorId());
@@ -75,7 +114,7 @@ public class DatabaseController {
             pstmt.setDate(3, Date.valueOf(b.getVisitDate()));
             pstmt.setTime(4, Time.valueOf(b.getVisitTime()));
             pstmt.setInt(5, b.getVisitorsCount());
-            pstmt.setString(6, "Pending"); 
+            pstmt.setString(6, b.getStatus()); 
             pstmt.setInt(7, totalPrice);
             return pstmt.executeUpdate() > 0;
         } catch (Exception e) { return false; }
@@ -104,14 +143,25 @@ public class DatabaseController {
         } catch (Exception e) { return false; }
     }
 
+    // המתודה המתוקנת שמוודאת שאין החזר כספי למי שמבטל מרשימת ההמתנה
     public int cancelBooking(int bookingId, String visitorId) {
         int refundAmount = 0;
-        String priceQuery = "SELECT total_price FROM bookings WHERE booking_id = ? AND visitor_id = ? AND status != 'Cancelled'";
+        String priceQuery = "SELECT total_price, status FROM bookings WHERE booking_id = ? AND visitor_id = ? AND status != 'Cancelled'";
         try (PreparedStatement pstmt = connection.prepareStatement(priceQuery)) {
             pstmt.setInt(1, bookingId); pstmt.setString(2, visitorId);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) refundAmount = rs.getInt("total_price");
-            else return -1;
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    String currentStatus = rs.getString("status");
+                    // בדיקה הרמטית: אם הוא ברשימת המתנה, ההחזר שלו הוא 0 עגול!
+                    if ("Waiting List".equals(currentStatus)) {
+                        refundAmount = 0;
+                    } else {
+                        refundAmount = rs.getInt("total_price");
+                    }
+                } else {
+                    return -1; // לא נמצאה הזמנה תקינה לביטול
+                }
+            }
         } catch (Exception e) { return -1; }
 
         String cancelQuery = "UPDATE bookings SET status = 'Cancelled' WHERE booking_id = ? AND visitor_id = ?";
