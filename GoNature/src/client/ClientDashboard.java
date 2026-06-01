@@ -34,7 +34,7 @@ public class ClientDashboard extends Application {
     private TextField visitorsInput = new TextField("1");
     private int selectedBookingId = -1;
 
-    // פקד תצוגה לכמות הכרטיסים הפנויים בזמן אמת
+    // פקד תצוגה חיצוני לקריאה מהירה של מצב הפארק ורשימת ההמתנה
     private Label liveCapacityLabel = new Label("Select park, date, and time, then click 'Select' to check availability.");
 
     @SuppressWarnings("unchecked")
@@ -81,7 +81,7 @@ public class ClientDashboard extends Application {
         Label openingHoursLabel = new Label("Note: Park Opening Hours are 08:00 to 18:00");
         openingHoursLabel.setStyle("-fx-text-fill: #d35400; -fx-font-weight: bold; -fx-font-size: 13px;");
 
-        liveCapacityLabel.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold; -fx-font-size: 13px;");
+        liveCapacityLabel.setStyle("-fx-text-fill: #2c3e50; -fx-font-weight: bold; -fx-font-size: 14px;");
 
         GridPane inputGrid = new GridPane(); inputGrid.setHgap(10); inputGrid.setVgap(10);
         inputGrid.add(new Label("Park:"), 0, 0); inputGrid.add(parkCombo, 1, 0);
@@ -89,23 +89,20 @@ public class ClientDashboard extends Application {
         inputGrid.add(new Label("Time:"), 0, 1); inputGrid.add(timeInput, 1, 1);
         inputGrid.add(new Label("Visitors (0-15):"), 2, 1); inputGrid.add(visitorsInput, 3, 1);
 
-        // כפתורים
-        Button btnSelect = new Button("Select"); // הכפתור החדש שביקשת
+        Button btnSelect = new Button("Select"); 
         btnSelect.setStyle("-fx-background-color: #2980b9; -fx-text-fill: white; -fx-font-weight: bold;");
         
         Button btnAdd = new Button("Add New Booking");
         Button btnUpdate = new Button("Update Selected");
         Button btnCancel = new Button("Cancel Selected"); btnCancel.setStyle("-fx-background-color: #ffcccc; -fx-font-weight: bold;");
 
-        // הוספת כפתור ה-Select לפני ה-Add בשורת הכפתורים
         HBox buttonBox = new HBox(15, btnSelect, btnAdd, btnUpdate, btnCancel); buttonBox.setPadding(new Insets(10, 0, 10, 0));
 
         // --- Action Events ---
         
-        // כפתור ה-Select מרענן את ההודעה ומציג כמה כרטיסים פנויים נותרו לפני הלחיצה על Add
         btnSelect.setOnAction(e -> {
             checkLiveCapacity();
-            responseLabel.setText("Availability refreshed for selected time.");
+            responseLabel.setText("Availability status refreshed.");
         });
 
         btnLogout.setOnAction(e -> {
@@ -150,17 +147,59 @@ public class ClientDashboard extends Application {
                         sendCommandToServer("ADD_DATA", b); 
                         loadDataFromServer();
                         checkLiveCapacity(); 
+                    } else {
+                        responseLabel.setText("Payment cancelled.");
                     }
-                } else if ("SUGGESTION".equals(response.getCommand())) {
-                    new Alert(Alert.AlertType.INFORMATION, response.getData().toString() + "\n\nPlease update your time.", ButtonType.OK).showAndWait();
                 } else {
-                    new Alert(Alert.AlertType.ERROR, "Park is full!", ButtonType.OK).showAndWait();
+                    // המקום מלא - הצטרפות לרשימת המתנה
+                    String serverSuggestion = response.getData() != null ? response.getData().toString() : "Park is full.";
+                    Alert alertWL = new Alert(Alert.AlertType.CONFIRMATION, serverSuggestion + "\n\nWould you like to join the Waiting List for this hour?", ButtonType.YES, ButtonType.NO);
+                    alertWL.showAndWait();
+                    if (alertWL.getResult() == ButtonType.YES) {
+                        b.setStatus("Waiting List"); 
+                        sendCommandToServer("ADD_DATA", b); 
+                        loadDataFromServer();
+                        checkLiveCapacity();
+                    }
                 }
             } catch (Exception ex) { responseLabel.setText("Server connection error."); }
         });
 
         btnUpdate.setOnAction(e -> {
             if (selectedBookingId == -1) { responseLabel.setText("Select a row first!"); return; }
+            Booking selectedBooking = table.getSelectionModel().getSelectedItem();
+
+            if ("Waiting List".equals(selectedBooking.getStatus())) {
+                int emptyTickets = getLiveEmptyTickets(selectedBooking.getParkName(), selectedBooking.getVisitDate(), selectedBooking.getVisitTime());
+                if (emptyTickets <= 0) {
+                    new Alert(Alert.AlertType.INFORMATION, "Still no available spots for this time slot. Please check back later.").showAndWait();
+                    return;
+                }
+                
+                int spotsToTake = Math.min(selectedBooking.getVisitorsCount(), emptyTickets);
+                int remaining = selectedBooking.getVisitorsCount() - spotsToTake;
+                
+                String confirmMsg = "There are " + emptyTickets + " spots available.\n" +
+                                   "Would you like to book " + spotsToTake + " tickets now?\n";
+                if (remaining > 0) {
+                    confirmMsg += "The remaining " + remaining + " tickets will stay on the Waiting List.";
+                } else {
+                    confirmMsg += "This will fully clear your waiting list entry.";
+                }
+                
+                Alert alertClaim = new Alert(Alert.AlertType.CONFIRMATION, confirmMsg, ButtonType.YES, ButtonType.NO);
+                alertClaim.showAndWait();
+                if (alertClaim.getResult() == ButtonType.YES) {
+                    ArrayList<Object> claimData = new ArrayList<>();
+                    claimData.add(selectedBooking.getBookingId());
+                    claimData.add(spotsToTake);
+                    sendCommandToServer("CLAIM_WAITING_SPOTS", claimData);
+                    loadDataFromServer();
+                    checkLiveCapacity();
+                }
+                return;
+            }
+
             LocalTime parsedTime;
             try { parsedTime = LocalTime.parse(timeInput.getText()); } 
             catch (Exception ex) { new Alert(Alert.AlertType.ERROR, "Invalid time format!").showAndWait(); return; }
@@ -188,10 +227,25 @@ public class ClientDashboard extends Application {
         checkLiveCapacity(); 
     }
 
+    private int getLiveEmptyTickets(String park, LocalDate date, LocalTime time) {
+        try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555); 
+             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream()); 
+             ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+            out.writeObject(new Message("GET_AVAILABLE_SPOTS", new Booking(0, "", park, date, time, 0, "Pending")));
+            Message response = (Message) in.readObject();
+            if ("AVAILABLE_SPOTS_RESPONSE".equals(response.getCommand())) {
+                return (int) response.getData();
+            }
+        } catch (Exception ex) { }
+        return 0;
+    }
+
+    // פונקציית הבדיקה החיצונית שמעדכנת את הסטטוס בחוץ באופן מיידי וברור
     private void checkLiveCapacity() {
         try {
             LocalTime time = LocalTime.parse(timeInput.getText());
             if (time.isBefore(LocalTime.of(8, 0)) || time.isAfter(LocalTime.of(18, 0))) {
+                liveCapacityLabel.setStyle("-fx-text-fill: #7f8c8d; -fx-font-weight: bold; -fx-font-size: 14px;");
                 liveCapacityLabel.setText("Park Status: Closed");
                 return;
             }
@@ -206,15 +260,19 @@ public class ClientDashboard extends Application {
                 
                 if ("AVAILABLE_SPOTS_RESPONSE".equals(response.getCommand())) {
                     int emptyTickets = (int) response.getData();
-                    int currentPeople = 150 - emptyTickets;
-                    int maxBrowse = Math.min(15, emptyTickets);
                     
-                    liveCapacityLabel.setText("Current People in Park: " + currentPeople + " | Empty Tickets: " + emptyTickets + " (You can browse/book: 0 to " + maxBrowse + ")");
+                    if (emptyTickets > 0) {
+                        // מקומות פנויים בחוץ - צבע ירוק
+                        liveCapacityLabel.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold; -fx-font-size: 14px;");
+                        liveCapacityLabel.setText("✓ " + emptyTickets + " empty spots available! You can proceed with a regular booking.");
+                    } else {
+                        // פארק מלא - צבע אדום, התרעה על רשימת המתנה
+                        liveCapacityLabel.setStyle("-fx-text-fill: #c0392b; -fx-font-weight: bold; -fx-font-size: 14px;");
+                        liveCapacityLabel.setText("⚠ PARK IS FULL! Hitting 'Add New Booking' will place you on the WAITING LIST.");
+                    }
                 }
             }
-        } catch (Exception ex) {
-            // התעלמות משגיאות פורמט זמניות בזמן הקלדה
-        }
+        } catch (Exception ex) { }
     }
 
     private void loadDataFromServer() {

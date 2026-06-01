@@ -102,6 +102,15 @@ public class GoNatureServer {
                     }
                     break;
 
+                case "CLAIM_WAITING_SPOTS":
+                    @SuppressWarnings("unchecked")
+                    ArrayList<Object> claimData = (ArrayList<Object>) clientMsg.getData();
+                    int bId = (int) claimData.get(0);
+                    int spotsToTake = (int) claimData.get(1);
+                    boolean successClaim = dbController.claimWaitingSpots(bId, spotsToTake);
+                    output.writeObject(new Message(successClaim ? "SUCCESS_PAID" : "FAILED", "Waiting list order updated and processed successfully!"));
+                    break;
+
                 case "ADD_DATA":
                     Booking newB = (Booking) clientMsg.getData();
                     if (newB.getVisitorsCount() > 15) {
@@ -109,7 +118,11 @@ public class GoNatureServer {
                     } else {
                         boolean saved = dbController.saveBooking(newB);
                         int price = newB.getVisitorsCount() * 30;
-                        output.writeObject(new Message(saved ? "SUCCESS_PAID" : "FAILED", "Order approved. Total Paid: " + price + " ILS"));
+                        if ("Waiting List".equals(newB.getStatus())) {
+                            output.writeObject(new Message("LIMIT_REACHED", "Successfully joined the Waiting List."));
+                        } else {
+                            output.writeObject(new Message(saved ? "SUCCESS_PAID" : "FAILED", "Order approved. Total Paid: " + price + " ILS"));
+                        }
                     }
                     break;
                     
