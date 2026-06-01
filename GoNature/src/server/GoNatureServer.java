@@ -3,6 +3,7 @@ package server;
 import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
+import java.time.LocalTime;
 import common.Message;
 import common.Booking;
 
@@ -55,6 +56,50 @@ public class GoNatureServer {
                     @SuppressWarnings("unchecked")
                     ArrayList<Object> regData = (ArrayList<Object>) clientMsg.getData();
                     output.writeObject(new Message(dbController.registerVisitor((String)regData.get(0), (String)regData.get(1), (boolean)regData.get(2)), null));
+                    break;
+
+                case "GET_AVAILABLE_SPOTS":
+                    Booking bSpots = (Booking) clientMsg.getData();
+                    int currentInPark = dbController.countVisitorsAt(bSpots.getParkName(), bSpots.getVisitDate(), bSpots.getVisitTime());
+                    int emptyTickets = 150 - currentInPark;
+                    if (emptyTickets < 0) emptyTickets = 0;
+                    output.writeObject(new Message("AVAILABLE_SPOTS_RESPONSE", emptyTickets));
+                    break;
+
+                case "CHECK_AVAILABILITY":
+                    Booking checkB = (Booking) clientMsg.getData();
+                    int current = dbController.countVisitorsAt(checkB.getParkName(), checkB.getVisitDate(), checkB.getVisitTime());
+
+                    if (current + checkB.getVisitorsCount() <= 150) {
+                        output.writeObject(new Message("OK", null));
+                    } else {
+                        LocalTime reqTime = checkB.getVisitTime();
+                        LocalTime before = reqTime.minusHours(1);
+                        LocalTime after = reqTime.plusHours(1);
+
+                        boolean validBefore = !before.isBefore(LocalTime.of(8, 0));
+                        boolean validAfter = !after.isAfter(LocalTime.of(18, 0));
+
+                        int countBefore = validBefore ? dbController.countVisitorsAt(checkB.getParkName(), checkB.getVisitDate(), before) : 999;
+                        int countAfter = validAfter ? dbController.countVisitorsAt(checkB.getParkName(), checkB.getVisitDate(), after) : 999;
+
+                        boolean canBookBefore = validBefore && (countBefore + checkB.getVisitorsCount() <= 150);
+                        boolean canBookAfter = validAfter && (countAfter + checkB.getVisitorsCount() <= 150);
+
+                        String msg = "Park is full at " + reqTime + ".";
+                        
+                        if (canBookBefore && canBookAfter) {
+                            msg += "\nTry " + before + " or " + after;
+                        } else if (canBookBefore) {
+                            msg += "\nTry " + before;
+                        } else if (canBookAfter) {
+                            msg += "\nTry " + after;
+                        } else {
+                            msg = "FULL";
+                        }
+
+                        output.writeObject(new Message(msg.equals("FULL") ? "FULL" : "SUGGESTION", msg));
+                    }
                     break;
 
                 case "ADD_DATA":
