@@ -34,14 +34,20 @@ public class ClientMain extends Application {
         authLayout.setPadding(new Insets(30));
         TextField idInput = new TextField(); idInput.setPromptText("Visitor ID");
         PasswordField passInput = new PasswordField(); passInput.setPromptText("Password");
-        CheckBox guideCheck = new CheckBox("I am an Organized Group Guide");
+        
+        // שדה חדש עבור שם מלא - רלוונטי רק להרשמה
+        TextField nameInput = new TextField(); nameInput.setPromptText("Full Name (Only for New Registration)");
+        
+        CheckBox guideCheck = new CheckBox("Register as an Organized Group Guide");
+        guideCheck.setStyle("-fx-font-weight: bold;");
+
         Button loginBtn = new Button("Log In"); loginBtn.setStyle("-fx-font-weight: bold;");
         Button regBtn = new Button("New Visitor (Register)"); regBtn.setStyle("-fx-background-color: #d4edda; -fx-font-weight: bold;"); 
         HBox buttonsBox = new HBox(10, loginBtn, regBtn);
         Label statusLabel = new Label(); statusLabel.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
         
-        authLayout.getChildren().addAll(new Label("Welcome! Please Log In or Register:"), idInput, passInput, guideCheck, buttonsBox, statusLabel);
-        Scene authScene = new Scene(authLayout, 350, 280);
+        authLayout.getChildren().addAll(new Label("Welcome! Please Log In or Register:"), idInput, passInput, nameInput, guideCheck, buttonsBox, statusLabel);
+        Scene authScene = new Scene(authLayout, 350, 320);
 
         connectBtn.setOnAction(e -> {
             String ip = ipInput.getText().trim();
@@ -56,22 +62,48 @@ public class ClientMain extends Application {
         loginBtn.setOnAction(e -> {
             String id = idInput.getText().trim(); String pass = passInput.getText().trim();
             if (id.isEmpty() || pass.isEmpty()) { statusLabel.setText("ID and Password required!"); return; }
+            
+            if (!id.matches("\\d{9}")) {
+                statusLabel.setText("ID is invalid! Must be exactly 9 digits.");
+                return;
+            }
+
             try (Socket socket = new Socket(serverIP, 5555); ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream()); ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
                 ArrayList<String> loginData = new ArrayList<>(); loginData.add(id); loginData.add(pass);
                 out.writeObject(new Message("LOGIN", loginData));
-                String res = ((Message) in.readObject()).getCommand();
-                if ("LOGIN_SUCCESS".equals(res)) {
-                    ClientDashboard.loggedInVisitorId = id; primaryStage.close(); new ClientDashboard().start(new Stage());
+                
+                Message resMsg = (Message) in.readObject();
+                String res = resMsg.getCommand();
+                
+                if ("LOGIN_SUCCESS_GUIDE".equals(res) || "LOGIN_SUCCESS_REGULAR".equals(res)) {
+                    ClientDashboard.loggedInVisitorId = id;
+                    String fullName = (String) resMsg.getData(); // השרת מחזיר כעת את השם המלא ב-Data
+                    ClientDashboard.loggedInName = (fullName != null && !fullName.equals("Unknown")) ? fullName : id;
+                    ClientDashboard.isAccountGuide = "LOGIN_SUCCESS_GUIDE".equals(res); 
+                    primaryStage.close(); 
+                    new ClientDashboard().start(new Stage());
                 } else if ("WRONG_PASSWORD".equals(res)) statusLabel.setText("Error: Wrong Password!");
                 else statusLabel.setText("User not found! Click 'New Visitor'.");
             } catch (Exception ex) { statusLabel.setText("Server connection lost."); }
         });
 
         regBtn.setOnAction(e -> {
-            String id = idInput.getText().trim(); String pass = passInput.getText().trim(); boolean isGuide = guideCheck.isSelected();
+            String id = idInput.getText().trim(); 
+            String pass = passInput.getText().trim(); 
+            String fullName = nameInput.getText().trim();
+            boolean isGuide = guideCheck.isSelected(); 
+            
             if (id.isEmpty() || pass.isEmpty()) { statusLabel.setText("ID and Password required!"); return; }
+            if (fullName.isEmpty()) { statusLabel.setText("Full Name is required for registration!"); return; }
+            
+            if (!id.matches("\\d{9}")) {
+                statusLabel.setText("ID is invalid! Must be exactly 9 digits.");
+                return;
+            }
+
             try (Socket socket = new Socket(serverIP, 5555); ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream()); ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
-                ArrayList<Object> regData = new ArrayList<>(); regData.add(id); regData.add(pass); regData.add(isGuide);
+                ArrayList<Object> regData = new ArrayList<>(); 
+                regData.add(id); regData.add(pass); regData.add(isGuide); regData.add(fullName); // הוספת השם המלא למידע הנשלח
                 out.writeObject(new Message("REGISTER", regData));
                 String res = ((Message) in.readObject()).getCommand();
                 if ("REGISTER_SUCCESS".equals(res)) { statusLabel.setStyle("-fx-text-fill: green;"); statusLabel.setText("Registration successful! Now click 'Log In'."); }

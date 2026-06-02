@@ -23,6 +23,8 @@ import java.util.ArrayList;
 public class ClientDashboard extends Application {
 
     public static String loggedInVisitorId = "";
+    public static String loggedInName = ""; // שומר את השם המלא כדי להציג אותו בכותרת
+    public static boolean isAccountGuide = false;
 
     private TableView<Booking> table = new TableView<>();
     private ObservableList<Booking> dataList = FXCollections.observableArrayList();
@@ -34,17 +36,27 @@ public class ClientDashboard extends Application {
     private TextField visitorsInput = new TextField("1");
     private int selectedBookingId = -1;
 
-    // פקד תצוגה חיצוני לקריאה מהירה של מצב הפארק ורשימת ההמתנה
     private Label liveCapacityLabel = new Label("Select park, date, and time, then click 'Select' to check availability.");
+    
+    private CheckBox chkIsGuide = new CheckBox("Order as Guide");
 
     @SuppressWarnings("unchecked")
     @Override
     public void start(Stage primaryStage) {
         primaryStage.setTitle("GoNature - Dashboard");
 
-        // --- Top Bar: Welcome Label & Logout Button ---
-        Label welcomeLabel = new Label("Welcome, Visitor: " + loggedInVisitorId);
+        // שינוי הכותרת כך שתציג את השם המלא במקום ה-ID
+        Label welcomeLabel = new Label("Welcome, " + loggedInName);
         welcomeLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: blue;");
+
+        if (isAccountGuide) {
+            chkIsGuide.setVisible(true);
+            chkIsGuide.setSelected(true);
+            chkIsGuide.setStyle("-fx-font-weight: bold; -fx-text-fill: #27ae60; -fx-font-size: 14px;");
+        } else {
+            chkIsGuide.setVisible(false);
+            chkIsGuide.setSelected(false);
+        }
 
         Button btnLogout = new Button("Logout");
         btnLogout.setStyle("-fx-background-color: #ff4d4d; -fx-text-fill: white; -fx-font-weight: bold;");
@@ -53,10 +65,10 @@ public class ClientDashboard extends Application {
         rightAlign.setAlignment(Pos.CENTER_RIGHT);
         HBox.setHgrow(rightAlign, Priority.ALWAYS);
         
-        HBox topBar = new HBox(welcomeLabel, rightAlign);
+        HBox topBar = new HBox(20, welcomeLabel, chkIsGuide, rightAlign);
         topBar.setAlignment(Pos.CENTER_LEFT);
 
-        parkCombo.getItems().addAll("Carmel Park", "Jordan Park", "Banias Park");
+        parkCombo.getItems().addAll("Carmel Park", "Jordan Park", "Banias Park", "Safari Zoo", "Ramon Crater", "Hula Valley");
         parkCombo.setValue("Carmel Park");
 
         TableColumn<Booking, Integer> idCol = new TableColumn<>("Order ID"); idCol.setCellValueFactory(new PropertyValueFactory<>("bookingId"));
@@ -65,8 +77,10 @@ public class ClientDashboard extends Application {
         TableColumn<Booking, LocalTime> timeCol = new TableColumn<>("Time"); timeCol.setCellValueFactory(new PropertyValueFactory<>("visitTime"));
         TableColumn<Booking, Integer> visCol = new TableColumn<>("Visitors"); visCol.setCellValueFactory(new PropertyValueFactory<>("visitorsCount"));
         TableColumn<Booking, String> statusCol = new TableColumn<>("Status"); statusCol.setCellValueFactory(new PropertyValueFactory<>("status"));
+        TableColumn<Booking, Integer> priceCol = new TableColumn<>("Price Paid"); priceCol.setCellValueFactory(new PropertyValueFactory<>("price"));
+        TableColumn<Booking, String> typeCol = new TableColumn<>("Booking Type"); typeCol.setCellValueFactory(new PropertyValueFactory<>("visitorType"));
 
-        table.getColumns().addAll(idCol, parkCol, dateCol, timeCol, visCol, statusCol);
+        table.getColumns().addAll(idCol, parkCol, dateCol, timeCol, visCol, statusCol, priceCol, typeCol);
         table.setItems(dataList);
 
         table.getSelectionModel().selectedItemProperty().addListener((obs, old, newSelection) -> {
@@ -74,6 +88,10 @@ public class ClientDashboard extends Application {
                 selectedBookingId = newSelection.getBookingId(); parkCombo.setValue(newSelection.getParkName());
                 datePicker.setValue(newSelection.getVisitDate()); timeInput.setText(newSelection.getVisitTime().toString());
                 visitorsInput.setText(String.valueOf(newSelection.getVisitorsCount()));
+                
+                if (isAccountGuide) {
+                    chkIsGuide.setSelected("Guide".equals(newSelection.getVisitorType()));
+                }
                 checkLiveCapacity(); 
             }
         });
@@ -87,7 +105,7 @@ public class ClientDashboard extends Application {
         inputGrid.add(new Label("Park:"), 0, 0); inputGrid.add(parkCombo, 1, 0);
         inputGrid.add(new Label("Date:"), 2, 0); inputGrid.add(datePicker, 3, 0);
         inputGrid.add(new Label("Time:"), 0, 1); inputGrid.add(timeInput, 1, 1);
-        inputGrid.add(new Label("Visitors (0-15):"), 2, 1); inputGrid.add(visitorsInput, 3, 1);
+        inputGrid.add(new Label("Visitors (1-15):"), 2, 1); inputGrid.add(visitorsInput, 3, 1);
 
         Button btnSelect = new Button("Select"); 
         btnSelect.setStyle("-fx-background-color: #2980b9; -fx-text-fill: white; -fx-font-weight: bold;");
@@ -98,8 +116,6 @@ public class ClientDashboard extends Application {
 
         HBox buttonBox = new HBox(15, btnSelect, btnAdd, btnUpdate, btnCancel); buttonBox.setPadding(new Insets(10, 0, 10, 0));
 
-        // --- Action Events ---
-        
         btnSelect.setOnAction(e -> {
             checkLiveCapacity();
             responseLabel.setText("Availability status refreshed.");
@@ -107,6 +123,7 @@ public class ClientDashboard extends Application {
 
         btnLogout.setOnAction(e -> {
             loggedInVisitorId = "";
+            loggedInName = "";
             primaryStage.close();
             try {
                 new ClientMain().start(new Stage()); 
@@ -114,6 +131,11 @@ public class ClientDashboard extends Application {
         });
 
         btnAdd.setOnAction(e -> {
+            if (datePicker.getValue().isBefore(LocalDate.now())) {
+                new Alert(Alert.AlertType.ERROR, "You cannot book an order for a past date!", ButtonType.OK).showAndWait();
+                return;
+            }
+
             LocalTime parsedTime;
             try { parsedTime = LocalTime.parse(timeInput.getText()); } 
             catch (Exception ex) { new Alert(Alert.AlertType.ERROR, "Invalid time format! Use HH:mm").showAndWait(); return; }
@@ -126,12 +148,19 @@ public class ClientDashboard extends Application {
             try { visitors = Integer.parseInt(visitorsInput.getText()); } 
             catch (NumberFormatException ex) { responseLabel.setText("Visitors must be a valid number!"); return; }
             
-            if (visitors > 15) {
-                new Alert(Alert.AlertType.ERROR, "You cannot book more than 15 visitors in a single order!", ButtonType.OK).showAndWait(); return;
+            if (visitors < 1 || visitors > 15) {
+                new Alert(Alert.AlertType.ERROR, "Number of visitors must be between 1 and 15!", ButtonType.OK).showAndWait();
+                return;
             }
             
             Booking b = new Booking(0, loggedInVisitorId, parkCombo.getValue(), datePicker.getValue(), parsedTime, visitors, "Pending");
             
+            if (isAccountGuide && chkIsGuide.isSelected()) {
+                b.setVisitorType("Guide");
+            } else {
+                b.setVisitorType("Regular Visitor");
+            }
+
             try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555); 
                  ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream()); 
                  ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
@@ -151,7 +180,6 @@ public class ClientDashboard extends Application {
                         responseLabel.setText("Payment cancelled.");
                     }
                 } else {
-                    // המקום מלא - הצטרפות לרשימת המתנה
                     String serverSuggestion = response.getData() != null ? response.getData().toString() : "Park is full.";
                     Alert alertWL = new Alert(Alert.AlertType.CONFIRMATION, serverSuggestion + "\n\nWould you like to join the Waiting List for this hour?", ButtonType.YES, ButtonType.NO);
                     alertWL.showAndWait();
@@ -166,8 +194,15 @@ public class ClientDashboard extends Application {
         });
 
         btnUpdate.setOnAction(e -> {
-            if (selectedBookingId == -1) { responseLabel.setText("Select a row first!"); return; }
             Booking selectedBooking = table.getSelectionModel().getSelectedItem();
+            
+            if (selectedBooking == null) { 
+                new Alert(Alert.AlertType.WARNING, "Please select a row from the table first before clicking Update!", ButtonType.OK).showAndWait();
+                responseLabel.setText("Select a row first!"); 
+                return; 
+            }
+
+            selectedBookingId = selectedBooking.getBookingId();
 
             if ("Waiting List".equals(selectedBooking.getStatus())) {
                 int emptyTickets = getLiveEmptyTickets(selectedBooking.getParkName(), selectedBooking.getVisitDate(), selectedBooking.getVisitTime());
@@ -200,18 +235,71 @@ public class ClientDashboard extends Application {
                 return;
             }
 
+            if (datePicker.getValue().isBefore(LocalDate.now())) {
+                new Alert(Alert.AlertType.ERROR, "You cannot update an order to a past date!", ButtonType.OK).showAndWait();
+                return;
+            }
+
             LocalTime parsedTime;
             try { parsedTime = LocalTime.parse(timeInput.getText()); } 
             catch (Exception ex) { new Alert(Alert.AlertType.ERROR, "Invalid time format!").showAndWait(); return; }
 
-            Booking b = new Booking(selectedBookingId, loggedInVisitorId, parkCombo.getValue(), datePicker.getValue(), parsedTime, Integer.parseInt(visitorsInput.getText()), "Pending");
+            int visitors;
+            try { visitors = Integer.parseInt(visitorsInput.getText()); } 
+            catch (Exception ex) { new Alert(Alert.AlertType.ERROR, "Invalid visitors number!").showAndWait(); return; }
+            
+            if (visitors < 1 || visitors > 15) {
+                new Alert(Alert.AlertType.ERROR, "Number of visitors must be between 1 and 15!", ButtonType.OK).showAndWait();
+                return;
+            }
+
+            int oldVisitors = selectedBooking.getVisitorsCount();
+            int diff = visitors - oldVisitors;
+
+            if (diff > 0) {
+                int additionalPrice = diff * 30;
+                Alert alertPay = new Alert(Alert.AlertType.CONFIRMATION, 
+                    "You are adding " + diff + " more visitor(s).\nAdditional payment required: " + additionalPrice + " ILS.\nProceed to payment?", 
+                    ButtonType.YES, ButtonType.NO);
+                alertPay.showAndWait();
+                if (alertPay.getResult() != ButtonType.YES) {
+                    responseLabel.setText("Update cancelled.");
+                    return;
+                }
+            } else if (diff < 0) {
+                int refundAmount = Math.abs(diff) * 30;
+                Alert alertRefund = new Alert(Alert.AlertType.CONFIRMATION, 
+                    "You are removing " + Math.abs(diff) + " visitor(s).\nYou will receive a refund of: " + refundAmount + " ILS.\nProceed with update?", 
+                    ButtonType.YES, ButtonType.NO);
+                alertRefund.showAndWait();
+                if (alertRefund.getResult() != ButtonType.YES) {
+                    responseLabel.setText("Update cancelled.");
+                    return;
+                }
+            }
+
+            Booking b = new Booking(selectedBookingId, loggedInVisitorId, parkCombo.getValue(), datePicker.getValue(), parsedTime, visitors, "Pending");
+            
+            if (isAccountGuide && chkIsGuide.isSelected()) {
+                b.setVisitorType("Guide");
+            } else {
+                b.setVisitorType("Regular Visitor");
+            }
+            
             sendCommandToServer("UPDATE_DATA", b); 
             loadDataFromServer();
             checkLiveCapacity();
         });
 
         btnCancel.setOnAction(e -> {
-            if (selectedBookingId == -1) { responseLabel.setText("Select a row first!"); return; }
+            Booking selectedBooking = table.getSelectionModel().getSelectedItem();
+            if (selectedBooking == null) { 
+                new Alert(Alert.AlertType.WARNING, "Please select a row from the table first before clicking Cancel!", ButtonType.OK).showAndWait();
+                responseLabel.setText("Select a row first!"); 
+                return; 
+            }
+            
+            selectedBookingId = selectedBooking.getBookingId();
             ArrayList<Object> deleteData = new ArrayList<>(); deleteData.add(selectedBookingId); deleteData.add(loggedInVisitorId); 
             sendCommandToServer("CANCEL_DATA", deleteData); 
             loadDataFromServer(); 
@@ -221,10 +309,23 @@ public class ClientDashboard extends Application {
 
         VBox layout = new VBox(15, topBar, table, openingHoursLabel, liveCapacityLabel, inputGrid, buttonBox, responseLabel);
         layout.setPadding(new Insets(20));
-        primaryStage.setScene(new Scene(layout, 650, 550)); primaryStage.show();
+        primaryStage.setScene(new Scene(layout, 750, 550)); primaryStage.show();
         
         loadDataFromServer();
         checkLiveCapacity(); 
+        checkTomorrowBookings(); 
+    }
+
+    private void checkTomorrowBookings() {
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        for (Booking b : dataList) {
+            if (b.getVisitDate().equals(tomorrow) && !"Cancelled".equals(b.getStatus())) {
+                new Alert(Alert.AlertType.INFORMATION, 
+                    "Reminder: You have an upcoming order tomorrow (" + tomorrow + ") at " + b.getParkName() + " scheduled for " + b.getVisitTime() + "!", 
+                    ButtonType.OK).showAndWait();
+                break; 
+            }
+        }
     }
 
     private int getLiveEmptyTickets(String park, LocalDate date, LocalTime time) {
@@ -240,9 +341,14 @@ public class ClientDashboard extends Application {
         return 0;
     }
 
-    // פונקציית הבדיקה החיצונית שמעדכנת את הסטטוס בחוץ באופן מיידי וברור
     private void checkLiveCapacity() {
         try {
+            if (datePicker.getValue().isBefore(LocalDate.now())) {
+                liveCapacityLabel.setStyle("-fx-text-fill: #c0392b; -fx-font-weight: bold; -fx-font-size: 14px;");
+                liveCapacityLabel.setText("⚠️ Cannot book past dates!");
+                return;
+            }
+
             LocalTime time = LocalTime.parse(timeInput.getText());
             if (time.isBefore(LocalTime.of(8, 0)) || time.isAfter(LocalTime.of(18, 0))) {
                 liveCapacityLabel.setStyle("-fx-text-fill: #7f8c8d; -fx-font-weight: bold; -fx-font-size: 14px;");
@@ -262,13 +368,11 @@ public class ClientDashboard extends Application {
                     int emptyTickets = (int) response.getData();
                     
                     if (emptyTickets > 0) {
-                        // מקומות פנויים בחוץ - צבע ירוק
                         liveCapacityLabel.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold; -fx-font-size: 14px;");
                         liveCapacityLabel.setText("✓ " + emptyTickets + " empty spots available! You can proceed with a regular booking.");
                     } else {
-                        // פארק מלא - צבע אדום, התרעה על רשימת המתנה
                         liveCapacityLabel.setStyle("-fx-text-fill: #c0392b; -fx-font-weight: bold; -fx-font-size: 14px;");
-                        liveCapacityLabel.setText("⚠ PARK IS FULL! Hitting 'Add New Booking' will place you on the WAITING LIST.");
+                        liveCapacityLabel.setText("⚠️ PARK IS FULL! Hitting 'Add New Booking' will place you on the WAITING LIST.");
                     }
                 }
             }
@@ -281,7 +385,8 @@ public class ClientDashboard extends Application {
             Message response = (Message) input.readObject();
             if ("SUCCESS".equals(response.getCommand())) {
                 @SuppressWarnings("unchecked")
-                ArrayList<Booking> list = (ArrayList<Booking>) response.getData(); dataList.setAll(list);
+                ArrayList<Booking> list = (ArrayList<Booking>) response.getData(); 
+                dataList.setAll(list);
             }
         } catch (Exception ex) { responseLabel.setText("Connection Error."); }
     }
