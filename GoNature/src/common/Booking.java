@@ -14,6 +14,10 @@ public class Booking implements Serializable {
     private LocalTime visitTime;
     private int visitorsCount;
     private String status;
+    
+    // השדות החדשים שהוספנו להצגת מחיר וסוג משתמש בטבלה
+    private int price;
+    private String visitorType;
 
     // The NEW constructor (7 parameters - includes status)
     public Booking(int bookingId, String visitorId, String parkName, LocalDate visitDate, LocalTime visitTime, int visitorsCount, String status) {
@@ -26,7 +30,7 @@ public class Booking implements Serializable {
         this.status = status;
     }
 
-    // The OLD constructor (6 parameters) - THIS FIXES YOUR ECLIPSE ERROR!
+    // The OLD constructor (6 parameters)
     public Booking(int bookingId, String visitorId, String parkName, LocalDate visitDate, LocalTime visitTime, int visitorsCount) {
         this.bookingId = bookingId;
         this.visitorId = visitorId;
@@ -34,7 +38,7 @@ public class Booking implements Serializable {
         this.visitDate = visitDate;
         this.visitTime = visitTime;
         this.visitorsCount = visitorsCount;
-        this.status = "Pending"; // Auto-assigns status to prevent crashes
+        this.status = "Pending"; 
     }
 
     // --- Getters and Setters ---
@@ -52,4 +56,11 @@ public class Booking implements Serializable {
     public void setVisitorsCount(int visitorsCount) { this.visitorsCount = visitorsCount; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    // הגטרים והסתרים החדשים עבור המחיר וסוג המבקר
+    public int getPrice() { return price; }
+    public void setPrice(int price) { this.price = price; }
+
+    public String getVisitorType() { return visitorType; }
+    public void setVisitorType(String visitorType) { this.visitorType = visitorType; }
 }
