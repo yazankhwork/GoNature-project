@@ -1,0 +1,22 @@
+# JavaFX SDK - large binary files
+lib/javafx-sdk-*/lib/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+target/
+*.class
+*.jar
+*.war
+
+# Dependencies
+node_modules/
