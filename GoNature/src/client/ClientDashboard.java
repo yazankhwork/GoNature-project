@@ -20,7 +20,15 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 
+/**
+ * Main dashboard screen of the GoNature client application.
+ *
+ * Allows visitors to create, update, cancel, and manage bookings.
+ *
+ * @author Bolos Saad
+ */
 public class ClientDashboard extends Application {
+
 
     public static String loggedInVisitorId = "";
     public static String loggedInName = ""; // שומר את השם המלא כדי להציג אותו בכותרת
@@ -40,6 +48,11 @@ public class ClientDashboard extends Application {
     
     private CheckBox chkIsGuide = new CheckBox("Order as Guide");
 
+    /**
+     * Initializes and displays the dashboard window.
+     *
+     * @param primaryStage the primary JavaFX stage
+     */
     @SuppressWarnings("unchecked")
     @Override
     public void start(Stage primaryStage) {
@@ -315,7 +328,11 @@ public class ClientDashboard extends Application {
         checkLiveCapacity(); 
         checkTomorrowBookings(); 
     }
-
+    /**
+     * Checks whether the currently logged-in visitor has
+     * a booking scheduled for tomorrow and displays a
+     * reminder notification if one exists.
+     */
     private void checkTomorrowBookings() {
         LocalDate tomorrow = LocalDate.now().plusDays(1);
         for (Booking b : dataList) {
@@ -327,7 +344,16 @@ public class ClientDashboard extends Application {
             }
         }
     }
-
+    /**
+     * Retrieves the number of available spots for a specific
+     * park, date, and time from the server.
+     *
+     * @param park the name of the park
+     * @param date the requested visit date
+     * @param time the requested visit time
+     * @return the number of available spots, or 0 if the
+     *         request fails or no information is available
+     */
     private int getLiveEmptyTickets(String park, LocalDate date, LocalTime time) {
         try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555); 
              ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream()); 
@@ -340,7 +366,9 @@ public class ClientDashboard extends Application {
         } catch (Exception ex) { }
         return 0;
     }
-
+    /**
+    *
+    */
     private void checkLiveCapacity() {
         try {
             if (datePicker.getValue().isBefore(LocalDate.now())) {
@@ -378,7 +406,9 @@ public class ClientDashboard extends Application {
             }
         } catch (Exception ex) { }
     }
-
+    /**
+    *
+    */
     private void loadDataFromServer() {
         try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555); ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream()); ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
             output.writeObject(new Message("LOAD_DATA", loggedInVisitorId));
@@ -390,7 +420,9 @@ public class ClientDashboard extends Application {
             }
         } catch (Exception ex) { responseLabel.setText("Connection Error."); }
     }
-
+    /**
+    *
+    */
     private void sendCommandToServer(String command, Object data) {
         try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555); ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream()); ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
             output.writeObject(new Message(command, data));
