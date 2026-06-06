@@ -1,6 +1,9 @@
 # JavaFX SDK - large binary files
 lib/javafx-sdk-*/lib/
 
+# Copilot session data
+copilot/
+
 # IDE
 .idea/
 *.iml
