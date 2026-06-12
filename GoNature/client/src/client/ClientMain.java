@@ -1,4 +1,4 @@
-package src.client;
+package client;
 
 import javafx.application.Application;
 import javafx.geometry.Insets;
@@ -13,6 +13,8 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.ArrayList;
+
+import client.gui.ClientDashboard;
 
 /**
  * Main JavaFX entry screen for the GoNature client application.
