@@ -1,4 +1,4 @@
-package server;
+package server.network;
 
 import java.io.*;
 import java.net.*;
@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.time.LocalTime;
 
 import common.Message;
+import server.database.DatabaseController;
 import common.Booking;
 
 /**

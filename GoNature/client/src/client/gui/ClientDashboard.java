@@ -1,4 +1,4 @@
-package client;
+package client.gui;
 
 import javafx.application.Application;
 import javafx.collections.FXCollections;
@@ -10,6 +10,7 @@ import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import client.ClientMain;
 import common.Booking;
 import common.Message;
 
