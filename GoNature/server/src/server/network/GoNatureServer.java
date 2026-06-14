@@ -131,6 +131,7 @@ public class GoNatureServer {
 			Message clientMsg = (Message) input.readObject();
 
 			String command = clientMsg.getCommand();
+			System.out.println("SERVER COMMAND RECEIVED: [" + command + "]");
 
 			switch (command) {
 
@@ -293,7 +294,40 @@ public class GoNatureServer {
 						dbController.updateBooking((Booking) clientMsg.getData()) ? "SUCCESS" : "FAILED", null));
 
 				break;
+				
+ 
+			case "CONFIRM_ARRIVAL":
 
+			    int confirmBookingId = -1;
+
+			    Object data = clientMsg.getData();
+
+			    System.out.println("CONFIRM_ARRIVAL DATA = " + data);
+			    System.out.println("CONFIRM_ARRIVAL DATA CLASS = " + data.getClass().getName());
+
+			    if (data instanceof Integer) {
+			        confirmBookingId = (Integer) data;
+			    } 
+			    else if (data instanceof ArrayList<?>) {
+			        ArrayList<?> list = (ArrayList<?>) data;
+			        confirmBookingId = (Integer) list.get(0);
+			    } 
+			    else {
+			        confirmBookingId = Integer.parseInt(data.toString());
+			    }
+
+			    System.out.println("Confirming booking id = " + confirmBookingId);
+
+			    boolean confirmed = dbController.confirmArrival(confirmBookingId);
+
+			    if (confirmed) {
+			        output.writeObject(new Message("ARRIVAL_CONFIRMED", "Arrival confirmed successfully."));
+			    } else {
+			        output.writeObject(new Message("FAILED", "Could not confirm arrival."));
+			    }
+
+			    break;
+			    
 			case "CANCEL_DATA":
 
 				@SuppressWarnings("unchecked")
@@ -316,15 +350,26 @@ public class GoNatureServer {
 				}
 
 				break;
+			default:
+
+			    System.out.println("UNKNOWN COMMAND: " + command);
+
+			    output.writeObject(
+			            new Message(
+			                    "UNKNOWN_COMMAND",
+			                    "Server does not recognize command: " + command
+			            )
+			    );
+
+			    break;
 			}
 
 			output.flush();
 			socket.close();
 
 		} catch (Exception e) {
-			System.err.println("Client handling error.");
-			System.err.println("REAL ERROR: " + e);
-			e.printStackTrace();
+		    System.err.println("Client handling error.");
+		    e.printStackTrace();
 		}
 	}
 }

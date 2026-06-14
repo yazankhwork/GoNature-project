@@ -11,7 +11,7 @@ public class DatabaseController {
 
 	public void connectToDatabase() {
 		try {
-			connection = DriverManager.getConnection("jdbc:mysql://localhost/gonature_db", "root", "Y123456y");
+			connection = DriverManager.getConnection("jdbc:mysql://localhost/gonature_db", "root", "Rabea21270");
 			System.out.println("Database connected successfully!");
 
 			try (Statement stmt = connection.createStatement()) {
@@ -171,7 +171,7 @@ public class DatabaseController {
 
 	public ArrayList<Booking> getUserBookings(String visitorId) {
 		ArrayList<Booking> list = new ArrayList<>();
-		String query = "SELECT * FROM bookings WHERE visitor_id = ?";
+		String query = "SELECT * FROM bookings WHERE visitor_id = ? AND status != 'Cancelled'";
 		try (PreparedStatement pstmt = connection.prepareStatement(query)) {
 			pstmt.setString(1, visitorId);
 			try (ResultSet rs = pstmt.executeQuery()) {
@@ -208,7 +208,22 @@ public class DatabaseController {
 			return false;
 		}
 	}
+	public boolean confirmArrival(int bookingId) {
+	    String query = "UPDATE bookings SET status = 'Confirmed' WHERE booking_id = ?";
 
+	    try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+	        pstmt.setInt(1, bookingId);
+
+	        int rows = pstmt.executeUpdate();
+	        System.out.println("Confirm arrival rows updated = " + rows);
+
+	        return rows > 0;
+
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	        return false;
+	    }
+	}
 	public int cancelBooking(int bookingId, String visitorId) {
 		int refundAmount = 0;
 		String priceQuery = "SELECT total_price, status FROM bookings WHERE booking_id = ? AND visitor_id = ? AND status != 'Cancelled'";
@@ -242,4 +257,5 @@ public class DatabaseController {
 		}
 		return -1;
 	}
+
 }

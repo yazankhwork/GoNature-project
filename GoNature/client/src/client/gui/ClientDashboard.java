@@ -1,5 +1,6 @@
 package client.gui;
 
+import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.application.Application;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -85,7 +86,12 @@ public class ClientDashboard extends Application {
 		parkCombo.setValue("Carmel Park");
 
 		TableColumn<Booking, Integer> idCol = new TableColumn<>("Order ID");
-		idCol.setCellValueFactory(new PropertyValueFactory<>("bookingId"));
+
+		idCol.setCellValueFactory(cellData ->
+		        new ReadOnlyObjectWrapper<>(
+		                table.getItems().indexOf(cellData.getValue()) + 1
+		        )
+		);
 		TableColumn<Booking, String> parkCol = new TableColumn<>("Park");
 		parkCol.setCellValueFactory(new PropertyValueFactory<>("parkName"));
 		TableColumn<Booking, LocalDate> dateCol = new TableColumn<>("Date");
@@ -172,10 +178,17 @@ public class ClientDashboard extends Application {
 
 			LocalTime parsedTime;
 			try {
-				parsedTime = LocalTime.parse(timeInput.getText());
+			    parsedTime = LocalTime.parse(timeInput.getText());
 			} catch (Exception ex) {
-				new Alert(Alert.AlertType.ERROR, "Invalid time format! Use HH:mm").showAndWait();
-				return;
+			    new Alert(Alert.AlertType.ERROR, "Invalid time format! Use HH:mm").showAndWait();
+			    return;
+			}
+			if (datePicker.getValue().isEqual(LocalDate.now()) &&
+			        parsedTime.isBefore(LocalTime.now())) {
+			    new Alert(Alert.AlertType.ERROR,
+			            "You cannot book an order for a time that has already passed today!",
+			            ButtonType.OK).showAndWait();
+			    return;
 			}
 
 			if (parsedTime.isBefore(LocalTime.of(8, 0)) || parsedTime.isAfter(LocalTime.of(18, 0))) {
@@ -302,7 +315,13 @@ public class ClientDashboard extends Application {
 				new Alert(Alert.AlertType.ERROR, "Invalid time format!").showAndWait();
 				return;
 			}
-
+			if (datePicker.getValue().isEqual(LocalDate.now()) &&
+			        parsedTime.isBefore(LocalTime.now())) {
+			    new Alert(Alert.AlertType.ERROR,
+			            "You cannot update an order to a time that has already passed today!",
+			            ButtonType.OK).showAndWait();
+			    return;
+			}
 			int visitors;
 			try {
 				visitors = Integer.parseInt(visitorsInput.getText());
@@ -392,15 +411,60 @@ public class ClientDashboard extends Application {
 	 * tomorrow and displays a reminder notification if one exists.
 	 */
 	private void checkTomorrowBookings() {
-		LocalDate tomorrow = LocalDate.now().plusDays(1);
-		for (Booking b : dataList) {
-			if (b.getVisitDate().equals(tomorrow) && !"Cancelled".equals(b.getStatus())) {
-				new Alert(Alert.AlertType.INFORMATION, "Reminder: You have an upcoming order tomorrow (" + tomorrow
-						+ ") at " + b.getParkName() + " scheduled for " + b.getVisitTime() + "!", ButtonType.OK)
-						.showAndWait();
-				break;
-			}
-		}
+	    LocalDate tomorrow = LocalDate.now().plusDays(1);
+
+	    for (Booking b : dataList) {
+	        if (b.getVisitDate().equals(tomorrow)
+	                && !"Cancelled".equals(b.getStatus())
+	                && !"Confirmed".equals(b.getStatus())) {
+
+	            ButtonType confirmArrivalButton =
+	                    new ButtonType("Confirm Arrival", ButtonBar.ButtonData.OK_DONE);
+
+	            ButtonType cancelBookingButton =
+	                    new ButtonType("Cancel Booking", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+	            ButtonType closeButton =
+	                    new ButtonType("Later", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+	            Alert alert = new Alert(
+	                    Alert.AlertType.CONFIRMATION,
+	                    "Reminder: You have an upcoming order tomorrow (" + tomorrow + ")"
+	                            + "\nPark: " + b.getParkName()
+	                            + "\nTime: " + b.getVisitTime()
+	                            + "\n\nDo you want to confirm your arrival or cancel the booking?",
+	                    confirmArrivalButton,
+	                    cancelBookingButton,
+	                    closeButton
+	            );
+
+	            alert.setTitle("Booking Reminder");
+	            alert.setHeaderText("Upcoming Booking Tomorrow");
+
+	            alert.showAndWait();
+
+	            if (alert.getResult() == confirmArrivalButton) {
+
+	                sendCommandToServer("CONFIRM_ARRIVAL", b.getBookingId());
+
+	                loadDataFromServer();
+	                checkLiveCapacity();
+	            }
+
+	             else if (alert.getResult() == cancelBookingButton) {
+
+	                ArrayList<Object> deleteData = new ArrayList<>();
+	                deleteData.add(b.getBookingId());
+	                deleteData.add(loggedInVisitorId);
+
+	                sendCommandToServer("CANCEL_DATA", deleteData);
+	                loadDataFromServer();
+	                checkLiveCapacity();
+	            }
+
+	            break;
+	        }
+	    }
 	}
 
 	/**
@@ -497,18 +561,37 @@ public class ClientDashboard extends Application {
 	*
 	*/
 	private void sendCommandToServer(String command, Object data) {
-		try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555);
-				ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
-				ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
-			output.writeObject(new Message(command, data));
-			Message response = (Message) input.readObject();
-			if ("LIMIT_REACHED".equals(response.getCommand()) || "CANCELLED_REFUND".equals(response.getCommand())
-					|| "SUCCESS_PAID".equals(response.getCommand())) {
-				new Alert(Alert.AlertType.INFORMATION, response.getData().toString(), ButtonType.OK).showAndWait();
-			}
-			responseLabel.setText("Action: " + response.getCommand());
-		} catch (Exception ex) {
-			responseLabel.setText("Connection Error.");
-		}
+	    try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555);
+	            ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
+	            ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
+
+	        output.writeObject(new Message(command, data));
+
+	        Message response = (Message) input.readObject();
+
+	        String responseCommand = response.getCommand();
+	        Object responseData = response.getData();
+
+	        if (responseData != null &&
+	                ("LIMIT_REACHED".equals(responseCommand)
+	                        || "CANCELLED_REFUND".equals(responseCommand)
+	                        || "CANCELLED_NO_REFUND".equals(responseCommand)
+	                        || "SUCCESS_PAID".equals(responseCommand)
+	                        || "ARRIVAL_CONFIRMED".equals(responseCommand)
+	                        || "FAILED".equals(responseCommand))) {
+
+	            new Alert(
+	                    Alert.AlertType.INFORMATION,
+	                    responseData.toString(),
+	                    ButtonType.OK
+	            ).showAndWait();
+	        }
+
+	        responseLabel.setText("Action: " + responseCommand);
+
+	    } catch (Exception ex) {
+	        ex.printStackTrace();
+	        responseLabel.setText("Connection Error.");
+	    }
 	}
 }
