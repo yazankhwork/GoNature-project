@@ -11,7 +11,7 @@ public class DatabaseController {
 
     public void connectToDatabase() {
         try {
-            connection = DriverManager.getConnection("jdbc:mysql://localhost/gonature_db", "root", "Elias123!");
+            connection = DriverManager.getConnection("jdbc:mysql://localhost/gonature_db", "root", "Y123456y");
             System.out.println("Database connected successfully!");
             
             try (Statement stmt = connection.createStatement()) {

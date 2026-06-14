@@ -505,10 +505,9 @@ public class GoNatureServer {
             socket.close();
 
         } catch (Exception e) {
-
-            System.err.println(
-                    "Client handling error."
-            );
+            System.err.println("Client handling error.");
+            System.err.println("REAL ERROR: " + e);
+            e.printStackTrace();
         }
     }
 }
