@@ -15,185 +15,221 @@ import java.net.Socket;
 import java.util.ArrayList;
 
 /**
- * JavaFX client connection screen for the GoNature system.
+ * Main JavaFX entry screen for the GoNature client application.
  * <p>
- * This screen allows a user to:
+ * This screen allows users to:
  * <ul>
- *     <li>Connect to the server using an IP address.</li>
- *     <li>Log in with an existing account.</li>
- *     <li>Register as a new visitor.</li>
+ * <li>Connect to the GoNature server.</li>
+ * <li>Log in using an existing account.</li>
+ * <li>Register as a new visitor.</li>
+ * <li>Register as an organized group guide.</li>
  * </ul>
- * After a successful login, the client dashboard is opened.
+ * After successful authentication, the dashboard screen is opened.
  *
  * @author Bolos Saad
  */
 public class ClientConnectionScreen extends Application {
 
-    /**
-     * IP address of the server currently used by the client.
-     */
-    public static String serverIP = "localhost";
+	/**
+	 * Current server IP address used by the client.
+	 */
+	public static String serverIP = "localhost";
 
-    /**
-     * Starts the JavaFX application and displays the connection screen.
-     *
-     * @param primaryStage the primary application window
-     */
-    @Override
-    public void start(Stage primaryStage) {
-        primaryStage.setTitle("GoNature - Server Connect");
+	/**
+	 * Starts the JavaFX application and displays the connection and authentication
+	 * screens.
+	 *
+	 * @param primaryStage the primary application window
+	 */
+	@Override
+	public void start(Stage primaryStage) {
 
-        // --- מסך 1: חיבור לשרת ---
-        VBox ipLayout = new VBox(12);
-        ipLayout.setPadding(new Insets(30));
-        TextField ipInput = new TextField("localhost");
-        Button connectBtn = new Button("Connect to Server");
-        Label errorLabel = new Label();
-        errorLabel.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
-        ipLayout.getChildren().addAll(new Label("Server IP:"), ipInput, connectBtn, errorLabel);
-        Scene ipScene = new Scene(ipLayout, 300, 200);
+		primaryStage.setTitle("GoNature - Server Connect");
 
-        // --- מסך 2: התחברות לחשבון / הרשמה ---
-        VBox authLayout = new VBox(12);
-        authLayout.setPadding(new Insets(30));
-        TextField idInput = new TextField();
-        idInput.setPromptText("Visitor ID");
+		VBox ipLayout = new VBox(12);
+		ipLayout.setPadding(new Insets(30));
 
-        PasswordField passInput = new PasswordField();
-        passInput.setPromptText("Password");
+		/** Text field used to enter the server IP address. */
+		TextField ipInput = new TextField("localhost");
 
-        CheckBox guideCheck = new CheckBox("I am an Organized Group Guide");
+		/** Button used to connect to the server. */
+		Button connectBtn = new Button("Connect to Server");
 
-        Button loginBtn = new Button("Log In");
-        loginBtn.setStyle("-fx-font-weight: bold;");
+		/** Label used to display connection errors. */
+		Label errorLabel = new Label();
+		errorLabel.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
 
-        Button regBtn = new Button("New Visitor (Register)");
-        regBtn.setStyle("-fx-background-color: #d4edda; -fx-font-weight: bold;");
+		ipLayout.getChildren().addAll(new Label("Server IP:"), ipInput, connectBtn, errorLabel);
 
-        HBox buttonsBox = new HBox(10, loginBtn, regBtn);
+		Scene ipScene = new Scene(ipLayout, 300, 200);
 
-        Label statusLabel = new Label();
-        statusLabel.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
+		VBox authLayout = new VBox(12);
+		authLayout.setPadding(new Insets(30));
 
-        authLayout.getChildren().addAll(
-                new Label("Welcome! Please Log In or Register:"),
-                idInput,
-                passInput,
-                guideCheck,
-                buttonsBox,
-                statusLabel
-        );
+		/** Text field for entering the visitor ID. */
+		TextField idInput = new TextField();
+		idInput.setPromptText("Visitor ID");
 
-        Scene authScene = new Scene(authLayout, 350, 280);
+		/** Password field for entering the user's password. */
+		PasswordField passInput = new PasswordField();
+		passInput.setPromptText("Password");
 
-        // לוגיקת חיבור
-        connectBtn.setOnAction(e -> {
-            String ip = ipInput.getText().trim();
-            if (ip.isEmpty()) {
-                errorLabel.setText("Please enter an IP address.");
-                return;
-            }
+		/** Text field used to enter the full name during registration. */
+		TextField nameInput = new TextField();
+		nameInput.setPromptText("Full Name (Only for New Registration)");
 
-            try (Socket socket = new Socket(ip, 5555);
-                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+		/** Check box indicating guide registration. */
+		CheckBox guideCheck = new CheckBox("Register as an Organized Group Guide");
+		guideCheck.setStyle("-fx-font-weight: bold;");
 
-                out.writeObject(new Message("CONNECT", null));
-                Message res = (Message) in.readObject();
+		/** Button used for user login. */
+		Button loginBtn = new Button("Log In");
+		loginBtn.setStyle("-fx-font-weight: bold;");
 
-                if ("CONNECTED".equals(res.getCommand())) {
-                    serverIP = ip;
-                    primaryStage.setTitle("GoNature - Secure Login");
-                    primaryStage.setScene(authScene);
-                }
-            } catch (Exception ex) {
-                errorLabel.setText("Connection Failed! Is server on?");
-            }
-        });
+		/** Button used for new user registration. */
+		Button regBtn = new Button("New Visitor (Register)");
+		regBtn.setStyle("-fx-background-color: #d4edda; -fx-font-weight: bold;");
 
-        // לוגיקת כניסה למערכת
-        loginBtn.setOnAction(e -> {
-            String id = idInput.getText().trim();
-            String pass = passInput.getText().trim();
+		HBox buttonsBox = new HBox(10, loginBtn, regBtn);
 
-            if (id.isEmpty() || pass.isEmpty()) {
-                statusLabel.setText("ID and Password required!");
-                return;
-            }
+		/** Label used to display login and registration status messages. */
+		Label statusLabel = new Label();
+		statusLabel.setStyle("-fx-text-fill: red; -fx-font-weight: bold;");
 
-            try (Socket socket = new Socket(serverIP, 5555);
-                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+		authLayout.getChildren().addAll(new Label("Welcome! Please Log In or Register:"), idInput, passInput, nameInput,
+				guideCheck, buttonsBox, statusLabel);
 
-                ArrayList<String> loginData = new ArrayList<>();
-                loginData.add(id);
-                loginData.add(pass);
+		Scene authScene = new Scene(authLayout, 350, 320);
 
-                out.writeObject(new Message("LOGIN", loginData));
-                Message res = (Message) in.readObject();
+		connectBtn.setOnAction(e -> {
+			String ip = ipInput.getText().trim();
 
-                if ("LOGIN_SUCCESS".equals(res.getCommand())) {
-                    ClientDashboard.loggedInVisitorId = id;
-                    primaryStage.close();
+			try (Socket socket = new Socket(ip, 5555);
+					ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+					ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
 
-                    // פותח את ה-Dashboard החדש!
-                    new ClientDashboard().start(new Stage());
+				out.writeObject(new Message("CONNECT", null));
 
-                } else if ("WRONG_PASSWORD".equals(res.getCommand())) {
-                    statusLabel.setText("Error: Wrong Password!");
-                } else {
-                    statusLabel.setText("User not found! Click 'New Visitor'.");
-                }
+				if ("CONNECTED".equals(((Message) in.readObject()).getCommand())) {
+					serverIP = ip;
+					primaryStage.setTitle("GoNature - Authentication");
+					primaryStage.setScene(authScene);
+				}
 
-            } catch (Exception ex) {
-                statusLabel.setText("Server connection lost.");
-            }
-        });
+			} catch (Exception ex) {
+				errorLabel.setText("Connection Failed! Is server on?");
+			}
+		});
 
-        // לוגיקת הרשמה
-        regBtn.setOnAction(e -> {
-            String id = idInput.getText().trim();
-            String pass = passInput.getText().trim();
-            boolean isGuide = guideCheck.isSelected();
+		loginBtn.setOnAction(e -> {
 
-            if (id.isEmpty() || pass.isEmpty()) {
-                statusLabel.setText("ID and Password required!");
-                return;
-            }
+			String id = idInput.getText().trim();
+			String pass = passInput.getText().trim();
 
-            try (Socket socket = new Socket(serverIP, 5555);
-                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+			if (id.isEmpty() || pass.isEmpty()) {
+				statusLabel.setText("ID and Password required!");
+				return;
+			}
 
-                ArrayList<Object> regData = new ArrayList<>();
-                regData.add(id);
-                regData.add(pass);
-                regData.add(isGuide);
+			if (!id.matches("\\d{9}")) {
+				statusLabel.setText("ID is invalid! Must be exactly 9 digits.");
+				return;
+			}
 
-                out.writeObject(new Message("REGISTER", regData));
-                Message res = (Message) in.readObject();
+			try (Socket socket = new Socket(serverIP, 5555);
+					ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+					ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
 
-                if ("REGISTER_SUCCESS".equals(res.getCommand())) {
-                    statusLabel.setStyle("-fx-text-fill: green;");
-                    statusLabel.setText("Registration successful! Now click 'Log In'.");
+				ArrayList<String> loginData = new ArrayList<>();
+				loginData.add(id);
+				loginData.add(pass);
 
-                } else if ("USER_ALREADY_EXISTS".equals(res.getCommand())) {
-                    statusLabel.setStyle("-fx-text-fill: red;");
-                    statusLabel.setText("ID already registered! Please log in.");
-                }
+				out.writeObject(new Message("LOGIN", loginData));
 
-            } catch (Exception ex) {
-                statusLabel.setText("Server connection lost.");
-            }
-        });
+				Message resMsg = (Message) in.readObject();
+				String res = resMsg.getCommand();
 
-        primaryStage.setScene(ipScene);
-        primaryStage.show();
-    }
+				if ("LOGIN_SUCCESS_GUIDE".equals(res) || "LOGIN_SUCCESS_REGULAR".equals(res)) {
 
-    /**
-     * Launches the JavaFX application.
-     *
-     * @param args command-line arguments
-     */
+					ClientDashboard.loggedInVisitorId = id;
+
+					String fullName = (String) resMsg.getData();
+
+					ClientDashboard.loggedInName = (fullName != null && !fullName.equals("Unknown")) ? fullName : id;
+
+					ClientDashboard.isAccountGuide = "LOGIN_SUCCESS_GUIDE".equals(res);
+
+					primaryStage.close();
+					new ClientDashboard().start(new Stage());
+
+				} else if ("WRONG_PASSWORD".equals(res)) {
+
+					statusLabel.setText("Error: Wrong Password!");
+
+				} else {
+
+					statusLabel.setText("User not found! Click 'New Visitor'.");
+				}
+
+			} catch (Exception ex) {
+				statusLabel.setText("Server connection lost.");
+			}
+		});
+
+		regBtn.setOnAction(e -> {
+
+			String id = idInput.getText().trim();
+			String pass = passInput.getText().trim();
+			String fullName = nameInput.getText().trim();
+			boolean isGuide = guideCheck.isSelected();
+
+			if (id.isEmpty() || pass.isEmpty()) {
+				statusLabel.setText("ID and Password required!");
+				return;
+			}
+
+			if (fullName.isEmpty()) {
+				statusLabel.setText("Full Name is required for registration!");
+				return;
+			}
+
+			if (!id.matches("\\d{9}")) {
+				statusLabel.setText("ID is invalid! Must be exactly 9 digits.");
+				return;
+			}
+
+			try (Socket socket = new Socket(serverIP, 5555);
+					ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+					ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+
+				ArrayList<Object> regData = new ArrayList<>();
+
+				regData.add(id);
+				regData.add(pass);
+				regData.add(isGuide);
+				regData.add(fullName);
+
+				out.writeObject(new Message("REGISTER", regData));
+
+				String res = ((Message) in.readObject()).getCommand();
+
+				if ("REGISTER_SUCCESS".equals(res)) {
+
+					statusLabel.setStyle("-fx-text-fill: green;");
+					statusLabel.setText("Registration successful! Now click 'Log In'.");
+
+				} else if ("USER_ALREADY_EXISTS".equals(res)) {
+
+					statusLabel.setStyle("-fx-text-fill: red;");
+					statusLabel.setText("ID already registered! Please log in.");
+				}
+
+			} catch (Exception ex) {
+				statusLabel.setText("Server connection lost.");
+			}
+		});
+
+		primaryStage.setScene(ipScene);
+		primaryStage.show();
+	}
 }

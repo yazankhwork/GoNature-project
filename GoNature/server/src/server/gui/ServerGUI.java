@@ -15,133 +15,94 @@ import server.network.GoNatureServer;
  * <p>
  * This screen allows administrators to:
  * <ul>
- *     <li>Start the server.</li>
- *     <li>Stop the server.</li>
- *     <li>Monitor the current server status.</li>
+ * <li>Start the server.</li>
+ * <li>Stop the server.</li>
+ * <li>Monitor the current server status.</li>
  * </ul>
  *
- * The interface communicates with the {@link GoNatureServer}
- * class to manage server operations.
+ * The interface communicates with the {@link GoNatureServer} class to manage
+ * server operations.
  *
  * @author Bolos Saad
  */
 public class ServerGUI extends Application {
 
-    /**
-     * Initializes and displays the server control window.
-     *
-     * @param primaryStage the primary JavaFX stage
-     */
-    @Override
-    public void start(Stage primaryStage) {
+	/**
+	 * Initializes and displays the server control window.
+	 *
+	 * @param primaryStage the primary JavaFX stage
+	 */
+	@Override
+	public void start(Stage primaryStage) {
 
-        primaryStage.setTitle("GoNature - Server Control");
+		primaryStage.setTitle("GoNature - Server Control");
 
-        /**
-         * Displays the current server status.
-         */
-        Label statusLabel =
-                new Label("Status: SERVER IS OFF");
+		/**
+		 * Displays the current server status.
+		 */
+		Label statusLabel = new Label("Status: SERVER IS OFF");
 
-        statusLabel.setStyle(
-                "-fx-text-fill: red; " +
-                "-fx-font-weight: bold; " +
-                "-fx-font-size: 14px;"
-        );
+		statusLabel.setStyle("-fx-text-fill: red; " + "-fx-font-weight: bold; " + "-fx-font-size: 14px;");
 
-        /**
-         * Button used to start the server.
-         */
-        Button startBtn =
-                new Button("Start Server");
+		/**
+		 * Button used to start the server.
+		 */
+		Button startBtn = new Button("Start Server");
 
-        /**
-         * Button used to stop the server.
-         */
-        Button stopBtn =
-                new Button("Stop Server");
+		/**
+		 * Button used to stop the server.
+		 */
+		Button stopBtn = new Button("Stop Server");
 
-        stopBtn.setDisable(true);
+		stopBtn.setDisable(true);
 
-        startBtn.setOnAction(e -> {
+		startBtn.setOnAction(e -> {
 
-            new Thread(
-                    () -> GoNatureServer.startServer()
-            ).start();
+			new Thread(() -> GoNatureServer.startServer()).start();
 
-            statusLabel.setText(
-                    "Status: SERVER IS RUNNING"
-            );
+			statusLabel.setText("Status: SERVER IS RUNNING");
 
-            statusLabel.setStyle(
-                    "-fx-text-fill: green; " +
-                    "-fx-font-weight: bold; " +
-                    "-fx-font-size: 14px;"
-            );
+			statusLabel.setStyle("-fx-text-fill: green; " + "-fx-font-weight: bold; " + "-fx-font-size: 14px;");
 
-            startBtn.setDisable(true);
-            stopBtn.setDisable(false);
-        });
+			startBtn.setDisable(true);
+			stopBtn.setDisable(false);
+		});
 
-        stopBtn.setOnAction(e -> {
+		stopBtn.setOnAction(e -> {
 
-            GoNatureServer.stopServer();
+			GoNatureServer.stopServer();
 
-            statusLabel.setText(
-                    "Status: SERVER IS OFF"
-            );
+			statusLabel.setText("Status: SERVER IS OFF");
 
-            statusLabel.setStyle(
-                    "-fx-text-fill: red; " +
-                    "-fx-font-weight: bold; " +
-                    "-fx-font-size: 14px;"
-            );
+			statusLabel.setStyle("-fx-text-fill: red; " + "-fx-font-weight: bold; " + "-fx-font-size: 14px;");
 
-            startBtn.setDisable(false);
-            stopBtn.setDisable(true);
-        });
+			startBtn.setDisable(false);
+			stopBtn.setDisable(true);
+		});
 
-        /**
-         * Container holding the control buttons.
-         */
-        HBox buttons =
-                new HBox(
-                        10,
-                        startBtn,
-                        stopBtn
-                );
+		/**
+		 * Container holding the control buttons.
+		 */
+		HBox buttons = new HBox(10, startBtn, stopBtn);
 
-        /**
-         * Main application layout.
-         */
-        VBox layout =
-                new VBox(
-                        20,
-                        statusLabel,
-                        buttons
-                );
+		/**
+		 * Main application layout.
+		 */
+		VBox layout = new VBox(20, statusLabel, buttons);
 
-        layout.setPadding(
-                new Insets(30)
-        );
+		layout.setPadding(new Insets(30));
 
-        primaryStage.setScene(
-                new Scene(
-                        layout,
-                        300,
-                        150
-                )
-        );
+		primaryStage.setScene(new Scene(layout, 300, 150));
 
-        primaryStage.show();
-    }
+		primaryStage.show();
+	}
 
-    /**
-     * Launches the JavaFX server control application.
-     *
-     * @param args command-line arguments
-     */
-    public static void main(String[] args) {
-        launch(args);
-    }
+	/**
+	 * Launches the JavaFX server control application.
+	 *
+	 * @param args command-line arguments
+	 */
+	public static void main(String[] args) {
+		launch(args);
+	}
 }
