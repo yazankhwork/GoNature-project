@@ -10,18 +10,22 @@ import common.Booking;
 public class DatabaseController {
 	private Connection connection;
 
-	public void connectToDatabase(String host, String user, String pass) {
+	public boolean connectToDatabase(String host, String user, String pass) {
 	    try {
 	        String url = "jdbc:mysql://" + host + "/gonature_db"
 	                   + "?serverTimezone=Asia/Jerusalem&useSSL=false&allowPublicKeyRetrieval=true";
 	        connection = DriverManager.getConnection(url, user, pass);
 	        System.out.println("Database connected successfully!");
-	    } catch (SQLException e) { System.err.println("DB Connection Error: " + e.getMessage()); }
+	        return true;
+	    } catch (SQLException e) {
+	        System.err.println("DB Connection Error: " + e.getMessage());
+	        return false;
+	    }
 	}
 
 	public int countVisitorsAt(String parkName, LocalDate date, LocalTime time) {
 		int total = 0;
-		String q1 = "SELECT SUM(visitors_count) FROM bookings WHERE park_name = ? AND visit_date = ? AND visit_time = ? AND status NOT IN ('Cancelled', 'Waiting List', 'Exited)";
+		String q1 = "SELECT SUM(visitors_count) FROM bookings WHERE park_name = ? AND visit_date = ? AND visit_time = ? AND status NOT IN ('Cancelled', 'Waiting List', 'Exited')";
 		try (PreparedStatement ps = connection.prepareStatement(q1)) {
 			ps.setString(1, parkName); ps.setDate(2, Date.valueOf(date)); ps.setTime(3, Time.valueOf(time));
 			ResultSet rs = ps.executeQuery(); if (rs.next()) total += rs.getInt(1);
@@ -182,6 +186,18 @@ public class DatabaseController {
 			return pstmt.executeUpdate() > 0;
 		} catch (Exception e) { return false; }
 	}
+	public boolean exitBooking(int bookingId) {
+	    String q = "UPDATE bookings SET status = 'Exited' " +
+	            "WHERE booking_id = ? AND status = 'Entered'";
+
+	    try (PreparedStatement ps = connection.prepareStatement(q)) {
+	        ps.setInt(1, bookingId);
+	        return ps.executeUpdate() > 0;
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	        return false;
+	    }
+	}
 
 	public boolean confirmArrival(int bookingId) {
 		try (PreparedStatement pstmt = connection.prepareStatement("UPDATE bookings SET status = 'Confirmed' WHERE booking_id = ?")) {
@@ -210,7 +226,7 @@ public class DatabaseController {
 
 	public void manageWaitingListQueue() {
 		try {
-			connection.prepareStatement("DELETE FROM waitinglist WHERE notified_time IS NOT NULL AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) >= 120").executeUpdate();
+			connection.prepareStatement("DELETE FROM waitinglist WHERE notified_time IS NOT NULL AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) >= 60").executeUpdate();
 			String getWaiting = "SELECT * FROM waitinglist WHERE notified_time IS NULL ORDER BY request_time ASC, waiting_id ASC";
 			try (PreparedStatement ps = connection.prepareStatement(getWaiting); ResultSet rs = ps.executeQuery()) {
 				HashSet<String> blockedSlots = new HashSet<>();
@@ -230,7 +246,7 @@ public class DatabaseController {
 	}
 
 	public ArrayList<Object> getWaitingListMessage(String visitorId) {
-		String query = "SELECT *, 120 - TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) AS mins_left FROM waitinglist WHERE visitor_id = ? AND notified_time IS NOT NULL LIMIT 1";
+		String query = "SELECT *, 60 - TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) AS mins_left FROM waitinglist WHERE visitor_id = ? AND notified_time IS NOT NULL LIMIT 1";
 		try (PreparedStatement pstmt = connection.prepareStatement(query)) {
 			pstmt.setString(1, visitorId);
 			ResultSet rs = pstmt.executeQuery();

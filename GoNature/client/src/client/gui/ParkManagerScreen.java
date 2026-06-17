@@ -9,10 +9,8 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import common.Message;
+import client.network.ClientSession;
 
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
 import java.util.ArrayList;
 
 /**
@@ -29,13 +27,7 @@ public class ParkManagerScreen extends Application {
 	private final Label statusLabel = new Label();
 
 	private static Message request(Message m) throws Exception {
-		try (Socket s = new Socket(ClientConnectionScreen.serverIP, 5555);
-				ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
-				ObjectInputStream in = new ObjectInputStream(s.getInputStream())) {
-			out.writeObject(m);
-			out.flush();
-			return (Message) in.readObject();
-		}
+		return ClientSession.send(m);
 	}
 
 	@Override

@@ -12,10 +12,8 @@ import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import common.Booking;
 import common.Message;
+import client.network.ClientSession;
 
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -238,12 +236,9 @@ public class ClientDashboard extends Application {
 			int calculatedPrice = calculatePrice(visitors, b.getVisitorType(), isSubscriberAccount, true, true);
 			b.setPrice(calculatedPrice);
 
-			try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555);
-					ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
-					ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
+			try {
 
-				output.writeObject(new Message("CHECK_AVAILABILITY", b));
-				Message response = (Message) input.readObject();
+				Message response = ClientSession.send(new Message("CHECK_AVAILABILITY", b));
 
 				if ("OK".equals(response.getCommand())) {
 					Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
@@ -454,11 +449,8 @@ public class ClientDashboard extends Application {
 	}
 
 	private void checkWaitingListInbox() {
-		try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555);
-				ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-				ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
-			out.writeObject(new Message("CHECK_WAITINGLIST", loggedInVisitorId));
-			Message response = (Message) in.readObject();
+		try {
+			Message response = ClientSession.send(new Message("CHECK_WAITINGLIST", loggedInVisitorId));
 
 			if ("HAS_EMPTY_PLACE".equals(response.getCommand())) {
 				@SuppressWarnings("unchecked")
@@ -508,44 +500,62 @@ public class ClientDashboard extends Application {
 	}
 
 	private void checkLiveCapacity() {
-		try {
-			if (datePicker.getValue().isBefore(LocalDate.now())) {
-				liveCapacityLabel.setText("⚠️ Cannot book past dates!");
-				return;
-			}
-			LocalTime time = LocalTime.parse(timeInput.getText());
-			if (time.isBefore(LocalTime.of(8, 0)) || time.isAfter(LocalTime.of(18, 0))) {
-				liveCapacityLabel.setText("Park Status: Closed");
-				return;
-			}
-			Booking b = new Booking(0, loggedInVisitorId, parkCombo.getValue(), datePicker.getValue(), time, 0,
-					"Pending");
+	    try {
+	        if (datePicker.getValue() == null) {
+	            liveCapacityLabel.setText("Please choose a date first.");
+	            return;
+	        }
 
-			try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555);
-					ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-					ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
-				out.writeObject(new Message("GET_AVAILABLE_SPOTS", b));
-				Message response = (Message) in.readObject();
-				if ("AVAILABLE_SPOTS_RESPONSE".equals(response.getCommand())) {
-					int emptyTickets = (int) response.getData();
-					if (emptyTickets > 0)
-						liveCapacityLabel.setText("✓ " + emptyTickets
-								+ " empty spots available! You can proceed with a regular booking.");
-					else
-						liveCapacityLabel.setText(
-								"⚠️ PARK IS FULL! Hitting 'Add New Booking' will place you on the WAITING LIST.");
-				}
-			}
-		} catch (Exception ex) {
-		}
+	        if (datePicker.getValue().isBefore(LocalDate.now())) {
+	            liveCapacityLabel.setText("⚠️ Cannot book past dates!");
+	            return;
+	        }
+
+	        if (timeInput.getText() == null || timeInput.getText().trim().isEmpty()) {
+	            liveCapacityLabel.setText("Please enter a time first.");
+	            return;
+	        }
+
+	        LocalTime time = LocalTime.parse(timeInput.getText().trim());
+
+	        if (time.isBefore(LocalTime.of(8, 0)) || time.isAfter(LocalTime.of(18, 0))) {
+	            liveCapacityLabel.setText("Park Status: Closed");
+	            return;
+	        }
+
+	        Booking b = new Booking(
+	                0,
+	                loggedInVisitorId,
+	                parkCombo.getValue(),
+	                datePicker.getValue(),
+	                time,
+	                0,
+	                "Pending"
+	        );
+
+	        Message response = ClientSession.send(new Message("GET_AVAILABLE_SPOTS", b));
+
+	        if ("AVAILABLE_SPOTS_RESPONSE".equals(response.getCommand())) {
+	            int emptyTickets = (int) response.getData();
+
+	            if (emptyTickets > 0) {
+	                liveCapacityLabel.setText("✓ " + emptyTickets
+	                        + " empty spots available! You can proceed with a regular booking.");
+	            } else {
+	                liveCapacityLabel.setText(
+	                        "⚠️ PARK IS FULL! Hitting 'Add New Booking' will place you on the WAITING LIST.");
+	            }
+	        }
+
+	    } catch (Exception ex) {
+	        liveCapacityLabel.setText("Could not check live capacity.");
+	        ex.printStackTrace();
+	    }
 	}
 
 	private void loadDataFromServer() {
-		try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555);
-				ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
-				ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
-			output.writeObject(new Message("LOAD_DATA", loggedInVisitorId));
-			Message response = (Message) input.readObject();
+		try {
+			Message response = ClientSession.send(new Message("LOAD_DATA", loggedInVisitorId));
 			if ("SUCCESS".equals(response.getCommand())) {
 				@SuppressWarnings("unchecked")
 				ArrayList<Booking> list = (ArrayList<Booking>) response.getData();
@@ -557,11 +567,8 @@ public class ClientDashboard extends Application {
 	}
 
 	private void sendCommandToServer(String command, Object data) {
-		try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555);
-				ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
-				ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
-			output.writeObject(new Message(command, data));
-			Message response = (Message) input.readObject();
+		try {
+			Message response = ClientSession.send(new Message(command, data));
 			if (response.getData() != null && command.matches("ADD_DATA|CANCEL_DATA|PAY_WAITING_LIST|ADD_SPLIT_BOOKING")) {
 			    new Alert(Alert.AlertType.INFORMATION, response.getData().toString(), ButtonType.OK).showAndWait();
 			    if ("SUCCESS_PAID".equals(response.getCommand())) {
@@ -573,10 +580,5 @@ public class ClientDashboard extends Application {
 		} catch (Exception ex) {
 			responseLabel.setText("Connection Error.");
 		}
-	}
-
-	// פונקציה שמייצרת קוד רנדומלי בן 8 ספרות
-	private String generateDigitalCode() {
-		return String.valueOf((int) (Math.random() * 90000000) + 10000000);
 	}
 }

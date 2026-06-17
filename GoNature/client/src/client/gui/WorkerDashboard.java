@@ -10,10 +10,8 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import common.Message;
+import client.network.ClientSession;
 
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
 import java.util.ArrayList;
 
 public class WorkerDashboard extends Application {
@@ -84,12 +82,10 @@ public class WorkerDashboard extends Application {
             String paymentData = "Cash".equals(subPayment.getValue()) ? "PAID_CASH" : subCcInput.getText().trim();
             if ("Credit Card".equals(subPayment.getValue()) && paymentData.isEmpty()) { subResponse.setText("Credit card number required!"); return; }
 
-            try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555);
-                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream()); ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+            try {
 
                 ArrayList<Object> subData = new ArrayList<>(); subData.add(vid); subData.add(famSize); subData.add(paymentData);
-                out.writeObject(new Message("BUY_SUBSCRIPTION", subData));
-                Message response = (Message) in.readObject();
+                Message response = ClientSession.send(new Message("BUY_SUBSCRIPTION", subData));
 
                 if ("SUCCESS".equals(response.getCommand())) {
                     String subNum = response.getData().toString();
@@ -137,16 +133,15 @@ public class WorkerDashboard extends Application {
             if (id.isEmpty() || pass.isEmpty() || name.isEmpty()) { guideResponse.setText("All fields required!"); return; }
             if (!id.matches("\\d{9}")) { guideResponse.setText("ID must be 9 digits!"); return; }
 
-            try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555);
-                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream()); ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+            try {
 
                 ArrayList<String> regData = new ArrayList<>(); 
                 regData.add(id); 
                 regData.add(pass); 
                 regData.add(name);
 
-                out.writeObject(new Message("REGISTER_GUIDE", regData));
-                String res = ((Message) in.readObject()).getCommand();
+                Message guideResp = ClientSession.send(new Message("REGISTER_GUIDE", regData));
+                String res = guideResp.getCommand();
 
                 if ("REGISTER_SUCCESS".equals(res)) { 
                     guideResponse.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;"); 

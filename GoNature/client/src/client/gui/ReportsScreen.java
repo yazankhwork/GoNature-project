@@ -14,10 +14,8 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import common.Message;
+import client.network.ClientSession;
 
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,13 +37,7 @@ public class ReportsScreen extends Application {
 	private final VBox chartHolder = new VBox(10);
 
 	private static Message request(Message m) throws Exception {
-		try (Socket s = new Socket(ClientConnectionScreen.serverIP, 5555);
-				ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
-				ObjectInputStream in = new ObjectInputStream(s.getInputStream())) {
-			out.writeObject(m);
-			out.flush();
-			return (Message) in.readObject();
-		}
+		return ClientSession.send(m);
 	}
 
 	@Override

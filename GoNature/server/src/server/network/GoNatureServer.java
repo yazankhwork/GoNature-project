@@ -1,313 +1,552 @@
 package server.network;
 
-import java.io.*;
-import java.net.*;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
 import common.Message;
-import server.database.DatabaseController;
 import common.Booking;
+import server.database.DatabaseController;
 
-public class GoNatureServer {
+import ocsf.server.AbstractServer;
+import ocsf.server.ConnectionToClient;
 
-	private static final int PORT = 5555;
-	private static DatabaseController dbController = new DatabaseController();
-	private static ServerSocket serverSocket;
-	private static boolean isRunning = false;
-	private static ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+/**
+ * GoNature server built on the OCSF AbstractServer framework. OCSF runs one
+ * thread per connected client and keeps connections open, so multiple clients
+ * are served at the same time. All business logic is in
+ * handleMessageFromClient; the server is the only component touching the DB.
+ */
+public class GoNatureServer extends AbstractServer {
+	
+	private static final int DEFAULT_PORT = 5555;
+	private static GoNatureServer runningServer;
+	private static Thread serverThread;
+	private final DatabaseController dbController = new DatabaseController();
+	private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-	public static void startServer(String dbHost, String dbUser, String dbPass) {
-	    isRunning = true;
-	    dbController.connectToDatabase(dbHost, dbUser, dbPass);
-	    scheduler.scheduleAtFixedRate(dbController::manageWaitingListQueue, 0, 1, TimeUnit.MINUTES);
+	public GoNatureServer(int port) {
+		super(port);
+	}
+	public static synchronized boolean startServer(String host, String user, String pass) {
+	    return startServer(host, user, pass, DEFAULT_PORT);
+	}
+
+	/**
+	 * Starts the GoNature OCSF server using a selected port.
+	 * The server decides which port to listen on, and clients connect to that port.
+	 */
+	public static synchronized boolean startServer(String host, String user, String pass, int port) {
+	    if (runningServer != null) {
+	        System.out.println("Server is already running.");
+	        return false;
+	    }
+
 	    try {
-	        serverSocket = new ServerSocket(PORT);
-	        System.out.println("Server is running on port " + PORT);
-	        while (isRunning) {
-	            Socket clientSocket = serverSocket.accept();
-	            new Thread(() -> handleClient(clientSocket)).start();
+	        GoNatureServer server = new GoNatureServer(port);
+
+	        boolean dbConnected = server.connectDB(host, user, pass);
+
+	        if (!dbConnected) {
+	            System.err.println("Database connection failed. Server was not started.");
+	            return false;
 	        }
-	    } catch (SocketException se) {
-			System.out.println("Server stopped.");
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+
+	        runningServer = server;
+
+	        serverThread = new Thread(() -> {
+	            try {
+	                runningServer.listen();
+	            } catch (Exception e) {
+	                e.printStackTrace();
+	            }
+	        });
+
+	        serverThread.setDaemon(true);
+	        serverThread.start();
+
+	        System.out.println("GoNature OCSF server started on port " + port);
+	        return true;
+
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	        runningServer = null;
+	        serverThread = null;
+	        return false;
+	    }
 	}
 
-	public static void stopServer() {
-		isRunning = false;
-		if (scheduler != null)
-			scheduler.shutdown();
-		try {
-			if (serverSocket != null && !serverSocket.isClosed())
-				serverSocket.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+	/**
+	 * Stops the GoNature OCSF server.
+	 * This method is used by the Server GUI.
+	 */
+	public static synchronized boolean stopServer() {
+	    if (runningServer == null) {
+	        System.out.println("Server is not running.");
+	        return false;
+	    }
+
+	    try {
+	        GoNatureServer serverToStop = runningServer;
+
+	        runningServer = null;
+	        serverThread = null;
+
+	        serverToStop.close();
+	        serverToStop.shutdownScheduler();
+
+	        System.out.println("GoNature OCSF server stopped.");
+	        return true;
+
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	        return false;
+	    }
+	}
+	private void shutdownScheduler() {
+	    if (!scheduler.isShutdown()) {
+	        scheduler.shutdownNow();
+	    }
+	}
+	/** Connects the database. Returns true on success. */
+	public boolean connectDB(String host, String user, String pass) {
+		return dbController.connectToDatabase(host, user, pass);
 	}
 
-	private static void handleClient(Socket socket) {
+	@Override
+	protected void serverStarted() {
+		System.out.println("Server listening on port " + getPort());
+		scheduler.scheduleAtFixedRate(dbController::manageWaitingListQueue, 0, 1, TimeUnit.MINUTES);
+	}
+
+	@Override
+	protected void serverStopped() {
+	    System.out.println("Server stopped.");
+	    shutdownScheduler();
+	}
+
+	@Override
+	protected void clientConnected(ConnectionToClient client) {
+		System.out.println("Client connected: " + client);
+	}
+
+	@Override
+	protected synchronized void clientDisconnected(ConnectionToClient client) {
+		System.out.println("Client disconnected: " + client);
+	}
+
+	@Override
+	protected void handleMessageFromClient(Object msg, ConnectionToClient client) {
+		Message response = new Message("ERROR", "No response was created.");
+
+		if (!(msg instanceof Message)) {
+			sendSafe(client, new Message("ERROR", "Invalid message type."));
+			return;
+		}
+
+		Message clientMsg = (Message) msg;
+		String command = clientMsg.getCommand();
+		Object data = clientMsg.getData();
+
 		try {
-			ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
-			output.flush();
-			ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
-
-			Message clientMsg = (Message) input.readObject();
-			String command = clientMsg.getCommand();
-			System.out.println("SERVER COMMAND RECEIVED: [" + command + "]");
-
 			switch (command) {
-			case "CONNECT":
-				output.writeObject(new Message("CONNECTED", null));
-				break;
 
-			case "LOGIN":
+			case "CONNECT": {
+				response = new Message("CONNECTED", null);
+				break;
+			}
+
+			case "LOGIN": {
 				@SuppressWarnings("unchecked")
-				ArrayList<String> loginData = (ArrayList<String>) clientMsg.getData();
+				ArrayList<String> loginData = (ArrayList<String>) data;
+
 				String[] loginRes = dbController.loginVisitor(loginData.get(0), loginData.get(1));
-				output.writeObject(new Message(loginRes[0], loginRes));
+				response = new Message(loginRes[0], loginRes);
 				break;
+			}
 
-			case "LOGIN_EMPLOYEE":
+			case "LOGIN_EMPLOYEE": {
 				@SuppressWarnings("unchecked")
-				ArrayList<String> empLoginData = (ArrayList<String>) clientMsg.getData();
+				ArrayList<String> empLoginData = (ArrayList<String>) data;
+
 				String[] empRes = dbController.loginEmployee(empLoginData.get(0), empLoginData.get(1));
-				output.writeObject(new Message(empRes[0], empRes));
+				response = new Message(empRes[0], empRes);
 				break;
+			}
 
-			case "BUY_SUBSCRIPTION":
+			case "BUY_SUBSCRIPTION": {
 				@SuppressWarnings("unchecked")
-				ArrayList<Object> subData = (ArrayList<Object>) clientMsg.getData();
+				ArrayList<Object> subData = (ArrayList<Object>) data;
+
 				int subId = dbController.buySubscription((String) subData.get(0), (int) subData.get(1),
 						(String) subData.get(2));
-				if (subId > 0)
-					output.writeObject(new Message("SUCCESS", String.valueOf(subId)));
-				else
-					output.writeObject(new Message("FAILED", null));
-				break;
 
-			case "REGISTER":
-				@SuppressWarnings("unchecked")
-				ArrayList<Object> regData = (ArrayList<Object>) clientMsg.getData();
-				output.writeObject(new Message(dbController.registerVisitor((String) regData.get(0),
-						(String) regData.get(1), (boolean) regData.get(2), (String) regData.get(3)), null));
-				break;
+				if (subId > 0) {
+					response = new Message("SUCCESS", String.valueOf(subId));
+				} else {
+					response = new Message("FAILED", "Failed to register subscription.");
+				}
 
-			// NEW: Specific command for Service Rep registering/upgrading a guide
-			case "REGISTER_GUIDE":
+				break;
+			}
+
+			case "REGISTER": {
 				@SuppressWarnings("unchecked")
-				ArrayList<String> guideData = (ArrayList<String>) clientMsg.getData();
+				ArrayList<Object> regData = (ArrayList<Object>) data;
+
+				String result = dbController.registerVisitor((String) regData.get(0), (String) regData.get(1),
+						(boolean) regData.get(2), (String) regData.get(3));
+
+				response = new Message(result, null);
+				break;
+			}
+
+			case "REGISTER_GUIDE": {
+				@SuppressWarnings("unchecked")
+				ArrayList<String> guideData = (ArrayList<String>) data;
+
 				String guideRes = dbController.registerOrUpdateGuide(guideData.get(0), guideData.get(1),
 						guideData.get(2));
-				output.writeObject(new Message(guideRes, null));
-				break;
 
-			case "GET_AVAILABLE_SPOTS":
-				Booking bSpots = (Booking) clientMsg.getData();
+				response = new Message(guideRes, null);
+				break;
+			}
+
+			case "GET_AVAILABLE_SPOTS": {
+				Booking bSpots = (Booking) data;
+
 				int emptyTickets = dbController.getParkCapacity(bSpots.getParkName()) - dbController
 						.countVisitorsAt(bSpots.getParkName(), bSpots.getVisitDate(), bSpots.getVisitTime());
 
-				output.writeObject(new Message("AVAILABLE_SPOTS_RESPONSE", Math.max(0, emptyTickets)));
+				response = new Message("AVAILABLE_SPOTS_RESPONSE", Math.max(0, emptyTickets));
 				break;
+			}
 
-			case "CHECK_AVAILABILITY":
-				Booking checkB = (Booking) clientMsg.getData();
+			case "CHECK_AVAILABILITY": {
+				Booking checkB = (Booking) data;
+
 				int current = dbController.countVisitorsAt(checkB.getParkName(), checkB.getVisitDate(),
 						checkB.getVisitTime());
+
 				int cap = dbController.getParkCapacity(checkB.getParkName());
 				int req = checkB.getVisitorsCount();
 				int available = cap - current;
 
-				if (available >= req)
-					output.writeObject(new Message("OK", null));
-				else if (available > 0)
-					output.writeObject(new Message("PARTIAL_AVAILABILITY", available));
-				else {
+				if (available >= req) {
+					response = new Message("OK", null);
+
+				} else if (available > 0) {
+					response = new Message("PARTIAL_AVAILABILITY", available);
+
+				} else {
 					LocalTime rTime = checkB.getVisitTime();
 					LocalTime bef = rTime.minusHours(1);
 					LocalTime aft = rTime.plusHours(1);
+
 					boolean vBef = !bef.isBefore(LocalTime.of(8, 0));
 					boolean vAft = !aft.isAfter(LocalTime.of(18, 0));
+
 					int cBef = vBef ? dbController.countVisitorsAt(checkB.getParkName(), checkB.getVisitDate(), bef)
 							: 999;
+
 					int cAft = vAft ? dbController.countVisitorsAt(checkB.getParkName(), checkB.getVisitDate(), aft)
 							: 999;
+
 					boolean bBef = vBef && (cBef + req <= cap);
 					boolean bAft = vAft && (cAft + req <= cap);
-					String msg = "Park is full at " + rTime + ".";
-					if (bBef && bAft)
-						msg += "\nSuggestion: Try " + bef + " or " + aft;
-					else if (bBef)
-						msg += "\nSuggestion: Try " + bef;
-					else if (bAft)
-						msg += "\nSuggestion: Try " + aft;
-					else
-						msg = "FULL";
-					output.writeObject(new Message(msg.equals("FULL") ? "FULL" : "SUGGESTION", msg));
-				}
-				break;
 
-			case "ADD_DATA":
-				Booking newB = (Booking) clientMsg.getData();
-				if (newB.getVisitorsCount() > 15)
-					output.writeObject(new Message("LIMIT_REACHED", "Error: Max 15 visitors."));
-				else {
-					if ("Waiting List".equals(newB.getStatus())) {
-						dbController.enterWaitingList(newB);
-						output.writeObject(new Message("LIMIT_REACHED", "Successfully joined the Waiting List."));
+					String msg1 = "Park is full at " + rTime + ".";
+
+					if (bBef && bAft) {
+						msg1 += "\nSuggestion: Try " + bef + " or " + aft;
+						response = new Message("SUGGESTION", msg1);
+
+					} else if (bBef) {
+						msg1 += "\nSuggestion: Try " + bef;
+						response = new Message("SUGGESTION", msg1);
+
+					} else if (bAft) {
+						msg1 += "\nSuggestion: Try " + aft;
+						response = new Message("SUGGESTION", msg1);
+
 					} else {
-						boolean saved = dbController.saveBooking(newB);
-						output.writeObject(new Message(saved ? "SUCCESS_PAID" : "FAILED",
-								"Order approved. Total Paid: " + newB.getPrice() + " ILS"));
+						response = new Message("FULL", "Park is full. You can join the waiting list.");
 					}
 				}
-				break;
 
-			case "ADD_SPLIT_BOOKING":
+				break;
+			}
+
+			case "ADD_DATA": {
+				Booking newB = (Booking) data;
+
+				if (newB.getVisitorsCount() > 15) {
+					response = new Message("LIMIT_REACHED", "Error: Max 15 visitors.");
+
+				} else if ("Waiting List".equals(newB.getStatus())) {
+					boolean ok = dbController.enterWaitingList(newB);
+
+					response = new Message(ok ? "LIMIT_REACHED" : "FAILED",
+							ok ? "Successfully joined the Waiting List." : "Could not join waiting list.");
+
+				} else {
+					boolean saved = dbController.saveBooking(newB);
+
+					response = new Message(saved ? "SUCCESS_PAID" : "FAILED",
+							saved ? "Order approved. Total Paid: " + newB.getPrice() + " ILS"
+									: "Could not save booking.");
+				}
+
+				break;
+			}
+
+			case "ADD_SPLIT_BOOKING": {
 				@SuppressWarnings("unchecked")
-				ArrayList<Booking> splitData = (ArrayList<Booking>) clientMsg.getData();
-				dbController.saveBooking(splitData.get(0));
-				dbController.enterWaitingList(splitData.get(1));
-				output.writeObject(new Message("SUCCESS_PAID",
-						"Partial booking confirmed! Paid: " + splitData.get(0).getPrice() + " ILS.\nThe remaining "
-								+ splitData.get(1).getVisitorsCount() + " visitors were added to the Waiting List."));
-				break;
+				ArrayList<Booking> splitData = (ArrayList<Booking>) data;
 
-			case "LOAD_DATA":
-				output.writeObject(new Message("SUCCESS", dbController.getUserBookings((String) clientMsg.getData())));
-				break;
+				boolean savedBooking = dbController.saveBooking(splitData.get(0));
+				boolean savedWaiting = dbController.enterWaitingList(splitData.get(1));
 
-			case "UPDATE_DATA":
-				output.writeObject(new Message(
-						dbController.updateBooking((Booking) clientMsg.getData()) ? "SUCCESS" : "FAILED", null));
-				break;
+				if (savedBooking && savedWaiting) {
+					response = new Message("SUCCESS_PAID",
+							"Partial booking confirmed! Paid: " + splitData.get(0).getPrice() + " ILS.\nThe remaining "
+									+ splitData.get(1).getVisitorsCount()
+									+ " visitors were added to the Waiting List.");
+				} else {
+					response = new Message("FAILED", "Could not complete split booking.");
+				}
 
-			case "CONFIRM_ARRIVAL":
-				int confirmBookingId = Integer.parseInt(clientMsg.getData().toString());
-				output.writeObject(
-						new Message(dbController.confirmArrival(confirmBookingId) ? "ARRIVAL_CONFIRMED" : "FAILED",
-								"Arrival confirmed."));
 				break;
+			}
 
-			case "CANCEL_DATA":
+			case "LOAD_DATA": {
+				response = new Message("SUCCESS", dbController.getUserBookings((String) data));
+				break;
+			}
+
+			case "UPDATE_DATA": {
+				boolean ok = dbController.updateBooking((Booking) data);
+				response = new Message(ok ? "SUCCESS" : "FAILED", ok ? null : "Could not update booking.");
+				break;
+			}
+
+			case "CONFIRM_ARRIVAL": {
+				int confirmBookingId = Integer.parseInt(data.toString());
+				boolean ok = dbController.confirmArrival(confirmBookingId);
+
+				response = new Message(ok ? "ARRIVAL_CONFIRMED" : "FAILED",
+						ok ? "Arrival confirmed." : "Could not confirm arrival.");
+
+				break;
+			}
+
+			case "CANCEL_DATA": {
 				@SuppressWarnings("unchecked")
-				ArrayList<Object> deleteData = (ArrayList<Object>) clientMsg.getData();
+				ArrayList<Object> deleteData = (ArrayList<Object>) data;
+
 				int refund = dbController.cancelBooking((int) deleteData.get(0), (String) deleteData.get(1));
+
 				dbController.manageWaitingListQueue();
-				if (refund > 0)
-					output.writeObject(
-							new Message("CANCELLED_REFUND", "Booking Cancelled. Refund: " + refund + " ILS."));
-				else if (refund == 0)
-					output.writeObject(new Message("CANCELLED_NO_REFUND", "Booking Cancelled."));
-				else
-					output.writeObject(new Message("FAILED", "Could not cancel booking."));
-				break;
 
-			case "CHECK_WAITINGLIST":
-				ArrayList<Object> wlMsg = dbController.getWaitingListMessage((String) clientMsg.getData());
-				if (wlMsg != null)
-					output.writeObject(new Message("HAS_EMPTY_PLACE", wlMsg));
-				else
-					output.writeObject(new Message("NO_MESSAGES", null));
-				break;
+				if (refund > 0) {
+					response = new Message("CANCELLED_REFUND", "Booking Cancelled. Refund: " + refund + " ILS.");
 
-			case "PAY_WAITING_LIST":
+				} else if (refund == 0) {
+					response = new Message("CANCELLED_NO_REFUND", "Booking Cancelled.");
+
+				} else {
+					response = new Message("FAILED", "Could not cancel booking.");
+				}
+
+				break;
+			}
+
+			case "CHECK_WAITINGLIST": {
+				ArrayList<Object> wlMsg = dbController.getWaitingListMessage((String) data);
+
+				if (wlMsg != null) {
+					response = new Message("HAS_EMPTY_PLACE", wlMsg);
+				} else {
+					response = new Message("NO_MESSAGES", null);
+				}
+
+				break;
+			}
+
+			case "PAY_WAITING_LIST": {
 				@SuppressWarnings("unchecked")
-				ArrayList<Object> payData = (ArrayList<Object>) clientMsg.getData();
+				ArrayList<Object> payData = (ArrayList<Object>) data;
+
 				boolean claimOk = dbController.payAndClaimWaitingList((int) payData.get(0), (int) payData.get(1));
-				output.writeObject(
-						new Message(claimOk ? "SUCCESS_PAID" : "FAILED", "Spot paid and claimed successfully!"));
-				break;
 
-			case "DECLINE_WAITING_LIST":
-				dbController.declineWaitingList((int) clientMsg.getData());
+				response = new Message(claimOk ? "SUCCESS_PAID" : "FAILED",
+						claimOk ? "Spot paid and claimed successfully!" : "Could not claim waiting-list spot.");
+
+				break;
+			}
+
+			case "DECLINE_WAITING_LIST": {
+				dbController.declineWaitingList((int) data);
 				dbController.manageWaitingListQueue();
-				output.writeObject(new Message("SUCCESS", "Spot declined. Passed to the next person."));
-				break;
-			case "GET_ACTIVE_VISITORS":
-				output.writeObject(new Message("ACTIVE_VISITORS",
-						dbController.getCurrentVisitorsInPark((String) clientMsg.getData())));
-				break;
 
-			case "GET_PARK_PARAMS":
-				output.writeObject(
-						new Message("PARK_PARAMS", dbController.getParkCapacity((String) clientMsg.getData())));
+				response = new Message("SUCCESS", "Spot declined. Passed to the next person.");
 				break;
+			}
+
+			case "GET_ACTIVE_VISITORS": {
+				response = new Message("ACTIVE_VISITORS", dbController.getCurrentVisitorsInPark((String) data));
+
+				break;
+			}
+
+			case "GET_PARK_PARAMS": {
+				response = new Message("PARK_PARAMS", dbController.getParkCapacity((String) data));
+
+				break;
+			}
 
 			case "UPDATE_PARK_CAPACITY": {
-				ArrayList<Object> p = (ArrayList<Object>) clientMsg.getData();
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> p = (ArrayList<Object>) data;
+
 				boolean ok = dbController.updateParkCapacity((String) p.get(0), (int) p.get(1));
-				output.writeObject(new Message(ok ? "SUCCESS" : "FAILED", null));
+
+				response = new Message(ok ? "SUCCESS" : "FAILED", ok ? null : "Could not update capacity.");
 				break;
 			}
 
 			case "CHECKIN": {
-				int bid = (int) clientMsg.getData();
+				int bid = (int) data;
 				Booking bk = dbController.getBookingById(bid);
-				if (bk == null || "Cancelled".equals(bk.getStatus())) {
-					output.writeObject(new Message("CHECKIN_FAILED", "No valid booking with ID " + bid));
-				} else {
-					int cap1 = dbController.getParkCapacity(bk.getParkName());
-					int now = dbController.getCurrentVisitorsInPark(bk.getParkName());
-					if (now + bk.getVisitorsCount() > cap1) {
-						output.writeObject(new Message("CHECKIN_FAILED", "Park is full, cannot admit this booking."));
-					} else {
-						dbController.setBookingStatus(bid, "Entered");
-						output.writeObject(new Message("CHECKIN_OK", "Checked in " + bk.getVisitorsCount()
-								+ " visitor(s). Bill: " + bk.getPrice() + " ILS."));
-					}
+
+				if (bk == null) {
+					response = new Message("CHECKIN_FAILED", "No booking found with ID " + bid);
+					break;
 				}
+
+				if ("Cancelled".equals(bk.getStatus())) {
+					response = new Message("CHECKIN_FAILED", "This booking is cancelled.");
+					break;
+				}
+
+				if ("Entered".equals(bk.getStatus())) {
+					response = new Message("CHECKIN_FAILED", "This booking is already checked in.");
+					break;
+				}
+
+				if ("Exited".equals(bk.getStatus())) {
+					response = new Message("CHECKIN_FAILED", "This booking already exited.");
+					break;
+				}
+
+				if (bk.getVisitDate().isBefore(LocalDate.now())) {
+					response = new Message("CHECKIN_FAILED", "This booking date already passed.");
+					break;
+				}
+
+				if (bk.getVisitDate().isAfter(LocalDate.now())) {
+					response = new Message("CHECKIN_FAILED", "This booking is not for today.");
+					break;
+				}
+
+				int cap1 = dbController.getParkCapacity(bk.getParkName());
+				int now = dbController.getCurrentVisitorsInPark(bk.getParkName());
+
+				if (now + bk.getVisitorsCount() > cap1) {
+					response = new Message("CHECKIN_FAILED", "Park is full, cannot admit this booking.");
+
+				} else {
+					dbController.setBookingStatus(bid, "Entered");
+
+					response = new Message("CHECKIN_OK",
+							"Checked in " + bk.getVisitorsCount() + " visitor(s). Bill: " + bk.getPrice() + " ILS.");
+				}
+
 				break;
 			}
 
 			case "CHECKOUT": {
-				int bid = (int) clientMsg.getData();
-				boolean ok = dbController.setBookingStatus(bid, "Exited");
-				output.writeObject(new Message(ok ? "CHECKOUT_OK" : "CHECKOUT_FAILED", null));
+				int bid = (int) data;
+				boolean ok = dbController.exitBooking(bid);
+
+				response = new Message(ok ? "CHECKOUT_OK" : "CHECKOUT_FAILED",
+						ok ? "Check-out registered." : "Check-out failed. Booking must be currently Entered.");
+
 				break;
 			}
 
 			case "CASUAL_VISIT": {
-				Booking cb = (Booking) clientMsg.getData();
+				Booking cb = (Booking) data;
+
+				if (cb.getVisitorsCount() <= 0) {
+					response = new Message("CASUAL_FAILED", "Visitor count must be at least 1.");
+					break;
+				}
+
 				int cap2 = dbController.getParkCapacity(cb.getParkName());
 				int now = dbController.getCurrentVisitorsInPark(cb.getParkName());
+
 				if (now + cb.getVisitorsCount() > cap2) {
-					output.writeObject(new Message("CASUAL_FAILED", "Park is full. No room for a walk-in now."));
+					response = new Message("CASUAL_FAILED", "Park is full. No room for a walk-in now.");
+
 				} else {
-					int bill = cb.getVisitorsCount() * 100; // casual = full price per person
+					int bill = cb.getVisitorsCount() * 30;
+
 					cb.setStatus("Entered");
 					cb.setPrice(bill);
 					cb.setVisitorType("Regular Visitor");
+
 					boolean saved = dbController.saveBooking(cb);
-					output.writeObject(new Message(saved ? "CASUAL_OK" : "CASUAL_FAILED",
-							saved ? ("Walk-in admitted. Bill: " + bill + " ILS.") : "Could not register walk-in."));
+
+					response = new Message(saved ? "CASUAL_OK" : "CASUAL_FAILED",
+							saved ? "Walk-in admitted. Bill: " + bill + " ILS." : "Could not register walk-in.");
 				}
+
 				break;
 			}
 
 			case "REPORT_VISITS": {
-				ArrayList<Object> f = (ArrayList<Object>) clientMsg.getData();
-				output.writeObject(new Message("REPORT_VISITS_RESULT",
-						dbController.reportVisitorsByType((String) f.get(0), (int) f.get(1), (int) f.get(2))));
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> f = (ArrayList<Object>) data;
+
+				response = new Message("REPORT_VISITS_RESULT",
+						dbController.reportVisitorsByType((String) f.get(0), (int) f.get(1), (int) f.get(2)));
+
 				break;
 			}
 
 			case "REPORT_CANCELLATIONS": {
-				ArrayList<Object> f = (ArrayList<Object>) clientMsg.getData();
-				output.writeObject(new Message("REPORT_CANCELLATIONS_RESULT",
-						dbController.reportCancellations((String) f.get(0), (int) f.get(1), (int) f.get(2))));
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> f = (ArrayList<Object>) data;
+
+				response = new Message("REPORT_CANCELLATIONS_RESULT",
+						dbController.reportCancellations((String) f.get(0), (int) f.get(1), (int) f.get(2)));
+
 				break;
 			}
-			default:
-				output.writeObject(new Message("UNKNOWN_COMMAND", "Server does not recognize command."));
+
+			default: {
+				response = new Message("UNKNOWN_COMMAND", "Server does not recognize command: " + command);
 				break;
 			}
-			output.flush();
-			socket.close();
+			}
+
 		} catch (Exception e) {
+			e.printStackTrace();
+			response = new Message("ERROR", "Server error: " + e.getMessage());
+		}
+
+		sendSafe(client, response);
+	}
+
+	private void sendSafe(ConnectionToClient client, Message response) {
+		try {
+			client.sendToClient(response);
+		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}

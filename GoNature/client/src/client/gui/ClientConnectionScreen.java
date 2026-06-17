@@ -11,10 +11,8 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import common.Message;
+import client.network.ClientSession;
 
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
 import java.util.ArrayList;
 
 public class ClientConnectionScreen extends Application {
@@ -69,10 +67,10 @@ public class ClientConnectionScreen extends Application {
 
 		connectBtn.setOnAction(e -> {
 			String ip = ipInput.getText().trim();
-			try (Socket socket = new Socket(ip, 5555);
-					ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream()); ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
-				out.writeObject(new Message("CONNECT", null));
-				if ("CONNECTED".equals(((Message) in.readObject()).getCommand())) {
+			try {
+				ClientSession.connect(ip);
+				Message connectResp = ClientSession.send(new Message("CONNECT", null));
+				if (connectResp != null && "CONNECTED".equals(connectResp.getCommand())) {
 					serverIP = ip; primaryStage.setTitle("GoNature - Authentication"); primaryStage.setScene(authScene);
 				}
 			} catch (Exception ex) { errorLabel.setText("Connection Failed! Is server on?"); }
@@ -87,14 +85,11 @@ public class ClientConnectionScreen extends Application {
 				return; 
 			}
 
-			try (Socket socket = new Socket(serverIP, 5555);
-					ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream()); ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+			try {
 
 				ArrayList<String> loginData = new ArrayList<>(); 
 				loginData.add(id); loginData.add(pass);
-				out.writeObject(new Message("LOGIN_EMPLOYEE", loginData));
-
-				Message resMsg = (Message) in.readObject();
+				Message resMsg = ClientSession.send(new Message("LOGIN_EMPLOYEE", loginData));
 				String res = resMsg.getCommand();
 
 				if ("LOGIN_SUCCESS_EMPLOYEE".equals(res)) {
@@ -129,13 +124,10 @@ public class ClientConnectionScreen extends Application {
 			if (id.isEmpty() || pass.isEmpty() || typedName.isEmpty()) { statusLabel.setText("ID, Password, and Full Name required!"); return; }
 			if (!id.matches("\\d{9}")) { statusLabel.setText("ID is invalid! Must be exactly 9 digits."); return; }
 
-			try (Socket socket = new Socket(serverIP, 5555);
-					ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream()); ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+			try {
 
 				ArrayList<String> loginData = new ArrayList<>(); loginData.add(id); loginData.add(pass);
-				out.writeObject(new Message("LOGIN", loginData));
-
-				Message resMsg = (Message) in.readObject();
+				Message resMsg = ClientSession.send(new Message("LOGIN", loginData));
 				String res = resMsg.getCommand();
 
 				if ("LOGIN_SUCCESS_GUIDE".equals(res) || "LOGIN_SUCCESS_REGULAR".equals(res)) {
@@ -170,12 +162,11 @@ public class ClientConnectionScreen extends Application {
 			if (fullName.isEmpty()) { statusLabel.setText("Name cannot be empty!"); return; }
 			if (!fullName.matches("^[a-zA-Z\\s]+$")) { statusLabel.setText("Full Name must contain only English letters!"); return; }
 
-			try (Socket socket = new Socket(serverIP, 5555);
-					ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream()); ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+			try {
 
 				ArrayList<Object> regData = new ArrayList<>(); regData.add(id); regData.add(pass); regData.add(isGuide); regData.add(fullName);
-				out.writeObject(new Message("REGISTER", regData));
-				String res = ((Message) in.readObject()).getCommand();
+				Message regResp = ClientSession.send(new Message("REGISTER", regData));
+				String res = regResp.getCommand();
 
 				if ("REGISTER_SUCCESS".equals(res)) { statusLabel.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;"); statusLabel.setText("Registration successful! Now click 'Log In'."); } 
 				else if ("USER_ALREADY_EXISTS".equals(res)) { statusLabel.setText("ID already registered! Please log in."); }

@@ -1,109 +1,61 @@
 package client.network;
 
-import java.io.*;
-import java.net.*;
-import java.time.LocalDate;
-import java.time.LocalTime;
+import java.io.IOException;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import common.Message;
-import common.Booking;
+import ocsf.client.AbstractClient;
 
 /**
- * Test client for the GoNature system.
- * <p>
- * This class establishes a TCP connection with the GoNature server, creates a
- * sample booking request, sends it to the server, and displays the response
- * returned by the server.
- * </p>
+ * GoNature client built on the OCSF AbstractClient framework.
  *
- * The client demonstrates:
- * <ul>
- * <li>Socket communication.</li>
- * <li>Object serialization using ObjectOutputStream.</li>
- * <li>Object deserialization using ObjectInputStream.</li>
- * <li>Sending Message objects between client and server.</li>
- * <li>Receiving and processing server responses.</li>
- * </ul>
- *
- * @author Bolos Saad
+ * OCSF is asynchronous: the server's reply arrives on a background thread in
+ * handleMessageFromServer. This project's screens work in a simple
+ * request-then-response style, so this class wraps OCSF with a blocking
+ * sendAndWait(...) that returns the matching reply. One connection is opened at
+ * startup and reused for the whole session (no socket per request).
  */
-public class GoNatureClient {
+public class GoNatureClient extends AbstractClient {
+
+	/** Holds the single most-recent server response. */
+	private final BlockingQueue<Message> responses = new ArrayBlockingQueue<>(1);
+
+	public GoNatureClient(String host, int port) {
+		super(host, port);
+	}
+
+	/** Called by OCSF on a background thread when the server sends a Message. */
+	@Override
+	protected void handleMessageFromServer(Object msg) {
+		if (msg instanceof Message) {
+			responses.offer((Message) msg);
+		}
+	}
 
 	/**
-	 * Entry point of the test client application.
-	 * <p>
-	 * Connects to the server, creates a sample booking, sends the booking request,
-	 * waits for a response, and prints the result to the console.
-	 * </p>
-	 *
-	 * @param args command-line arguments
+	 * Sends a request and blocks until the response arrives (max 10 seconds).
+	 * Safe to call from the JavaFX thread because it only returns the value;
+	 * it does not touch the UI itself.
 	 */
-	public static void main(String[] args) {
-
-		/**
-		 * Hostname or IP address of the server.
-		 */
-		String hostname = "localhost";
-
-		/**
-		 * Port number used for communication with the server.
-		 */
-		int port = 5555;
-
-		try (Socket socket = new Socket(hostname, port)) {
-
-			System.out.println("Connected to the server!");
-
-			/**
-			 * Stream used to send serialized objects to the server.
-			 */
-			ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
-
-			output.flush();
-
-			/**
-			 * Stream used to receive serialized objects from the server.
-			 */
-			ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
-
-			/**
-			 * Sample booking object used for testing server communication.
-			 */
-			Booking myBooking = new Booking(0, "212702559", "Carmel Park", LocalDate.now(), LocalTime.of(10, 0), 5,
-					"Pending");
-
-			/**
-			 * Message object containing the booking request.
-			 */
-			Message requestMsg = new Message("CREATE_BOOKING", myBooking);
-
-			System.out.println("Sending booking request to server...");
-
-			output.writeObject(requestMsg);
-			output.flush();
-
-			/**
-			 * Response message received from the server.
-			 */
-			Message responseMsg = (Message) input.readObject();
-
-			System.out.println("Server replied with command: " + responseMsg.getCommand());
-
-			if (responseMsg.getData() instanceof Booking) {
-
-				/**
-				 * Booking object returned by the server.
-				 */
-				Booking returnedBooking = (Booking) responseMsg.getData();
-
-				System.out.println("Success! The booking status is now: " + returnedBooking.getStatus());
+	public synchronized Message sendAndWait(Message request) throws IOException {
+		responses.clear();
+		sendToServer(request);
+		try {
+			Message resp = responses.poll(10, TimeUnit.SECONDS);
+			if (resp == null) {
+				throw new IOException("No response from server (timed out).");
 			}
-
-		} catch (Exception ex) {
-
-			System.out.println("Client Error: " + ex.getMessage());
-
-			ex.printStackTrace();
+			return resp;
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new IOException("Interrupted while waiting for the server.");
 		}
+	}
+
+	@Override
+	protected void connectionException(Exception exception) {
+		System.err.println("Connection to server lost: " + exception.getMessage());
 	}
 }

@@ -2,6 +2,7 @@ package client.gui;
 
 import common.Booking;
 import common.Message;
+import client.network.ClientSession;
 
 import javafx.application.Application;
 import javafx.geometry.Insets;
@@ -12,12 +13,8 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.ArrayList;
 
 /**
 * Entry-worker dashboard: gate check-in by booking ID, check-out, casual
@@ -35,13 +32,7 @@ public class EntryWorkerDashboard extends Application {
 
 	/** One request, one response, matching this project's socket-per-action style. */
 	private static Message request(Message m) throws Exception {
-		try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555);
-				ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-				ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
-			out.writeObject(m);
-			out.flush();
-			return (Message) in.readObject();
-		}
+		return ClientSession.send(m);
 	}
 
 	@Override
