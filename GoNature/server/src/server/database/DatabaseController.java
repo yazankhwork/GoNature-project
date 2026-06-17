@@ -263,4 +263,85 @@ public class DatabaseController {
 	public void declineWaitingList(int waitingId) {
 		try { connection.prepareStatement("DELETE FROM waitinglist WHERE waiting_id = " + waitingId).executeUpdate(); } catch (Exception e) { e.printStackTrace(); }
 	}
+	public common.Booking getBookingById(int bookingId) {
+	    String q = "SELECT * FROM bookings WHERE booking_id = ?";
+	    try (PreparedStatement ps = connection.prepareStatement(q)) {
+	        ps.setInt(1, bookingId);
+	        try (ResultSet rs = ps.executeQuery()) {
+	            if (rs.next()) {
+	                common.Booking b = new common.Booking(rs.getInt("booking_id"), rs.getString("visitor_id"),
+	                        rs.getString("park_name"), rs.getDate("visit_date").toLocalDate(),
+	                        rs.getTime("visit_time").toLocalTime(), rs.getInt("visitors_count"), rs.getString("status"));
+	                b.setPrice(rs.getInt("total_price"));
+	                b.setVisitorType(rs.getString("booking_type"));
+	                return b;
+	            }
+	        }
+	    } catch (Exception e) { e.printStackTrace(); }
+	    return null;
+	}
+
+	public int getParkCapacity(String parkName) {
+	    String q = "SELECT max_capacity FROM parks WHERE park_name = ?";
+	    try (PreparedStatement ps = connection.prepareStatement(q)) {
+	        ps.setString(1, parkName);
+	        try (ResultSet rs = ps.executeQuery()) { if (rs.next()) return rs.getInt(1); }
+	    } catch (Exception e) { e.printStackTrace(); }
+	    return 150; // fallback if park missing
+	}
+
+	public boolean updateParkCapacity(String parkName, int newCapacity) {
+	    String q = "UPDATE parks SET max_capacity = ? WHERE park_name = ?";
+	    try (PreparedStatement ps = connection.prepareStatement(q)) {
+	        ps.setInt(1, newCapacity); ps.setString(2, parkName);
+	        return ps.executeUpdate() > 0;
+	    } catch (Exception e) { e.printStackTrace(); return false; }
+	}
+
+	public int getCurrentVisitorsInPark(String parkName) {
+	    String q = "SELECT COALESCE(SUM(visitors_count),0) FROM bookings WHERE park_name = ? AND status = 'Entered'";
+	    try (PreparedStatement ps = connection.prepareStatement(q)) {
+	        ps.setString(1, parkName);
+	        try (ResultSet rs = ps.executeQuery()) { if (rs.next()) return rs.getInt(1); }
+	    } catch (Exception e) { e.printStackTrace(); }
+	    return 0;
+	}
+
+	public boolean setBookingStatus(int bookingId, String status) {
+	    String q = "UPDATE bookings SET status = ? WHERE booking_id = ?";
+	    try (PreparedStatement ps = connection.prepareStatement(q)) {
+	        ps.setString(1, status); ps.setInt(2, bookingId);
+	        return ps.executeUpdate() > 0;
+	    } catch (Exception e) { e.printStackTrace(); return false; }
+	}
+
+	public java.util.HashMap<String,Integer> reportVisitorsByType(String park, int year, int month) {
+	    java.util.HashMap<String,Integer> map = new java.util.HashMap<>();
+	    String q = "SELECT booking_type, SUM(visitors_count) FROM bookings WHERE park_name=? AND YEAR(visit_date)=? "
+	             + "AND MONTH(visit_date)=? AND status IN ('Confirmed','Entered','Exited') GROUP BY booking_type";
+	    try (PreparedStatement ps = connection.prepareStatement(q)) {
+	        ps.setString(1, park); ps.setInt(2, year); ps.setInt(3, month);
+	        try (ResultSet rs = ps.executeQuery()) {
+	            while (rs.next()) map.put(rs.getString(1) == null ? "Unknown" : rs.getString(1), rs.getInt(2));
+	        }
+	    } catch (Exception e) { e.printStackTrace(); }
+	    return map;
+	}
+
+	public java.util.ArrayList<Integer> reportCancellations(String park, int year, int month) {
+	    int cancelled = 0, noShow = 0;
+	    String c = "SELECT COUNT(*) FROM bookings WHERE park_name=? AND YEAR(visit_date)=? AND MONTH(visit_date)=? AND status='Cancelled'";
+	    String n = "SELECT COUNT(*) FROM bookings WHERE park_name=? AND YEAR(visit_date)=? AND MONTH(visit_date)=? "
+	             + "AND status NOT IN ('Cancelled','Entered','Exited') AND visit_date < CURDATE()";
+	    try (PreparedStatement ps = connection.prepareStatement(c)) {
+	        ps.setString(1, park); ps.setInt(2, year); ps.setInt(3, month);
+	        try (ResultSet rs = ps.executeQuery()) { if (rs.next()) cancelled = rs.getInt(1); }
+	    } catch (Exception e) { e.printStackTrace(); }
+	    try (PreparedStatement ps = connection.prepareStatement(n)) {
+	        ps.setString(1, park); ps.setInt(2, year); ps.setInt(3, month);
+	        try (ResultSet rs = ps.executeQuery()) { if (rs.next()) noShow = rs.getInt(1); }
+	    } catch (Exception e) { e.printStackTrace(); }
+	    java.util.ArrayList<Integer> out = new java.util.ArrayList<>();
+	    out.add(cancelled); out.add(noShow); return out;
+	}
 }

@@ -1,0 +1,168 @@
+package client.gui;
+
+import common.Booking;
+import common.Message;
+
+import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.stage.Stage;
+
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.ArrayList;
+
+/**
+* Entry-worker dashboard: gate check-in by booking ID, check-out, casual
+* walk-in admission, and a live count of visitors currently in the park.
+* Written in the same code-built JavaFX + string-command style as the rest of
+* this project (no FXML), so it drops straight into the existing client.
+*/
+public class EntryWorkerDashboard extends Application {
+
+	/** Set by the login screen before this dashboard opens. */
+	public static String loggedInEmpName = "Worker";
+
+	private final ComboBox<String> parkCombo = new ComboBox<>();
+	private final Label result = new Label("Ready.");
+
+	/** One request, one response, matching this project's socket-per-action style. */
+	private static Message request(Message m) throws Exception {
+		try (Socket socket = new Socket(ClientConnectionScreen.serverIP, 5555);
+				ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+				ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+			out.writeObject(m);
+			out.flush();
+			return (Message) in.readObject();
+		}
+	}
+
+	@Override
+	public void start(Stage stage) {
+		stage.setTitle("GoNature - Entry Worker");
+
+		Label title = new Label("Entry Worker Station");
+		title.setFont(Font.font("System", FontWeight.BOLD, 22));
+		title.setStyle("-fx-text-fill: #2c3e50;");
+		Label subtitle = new Label("Welcome, " + loggedInEmpName);
+
+		Button logout = new Button("Logout");
+		logout.setStyle("-fx-background-color: #ff4d4d; -fx-text-fill: white; -fx-font-weight: bold;");
+		logout.setOnAction(e -> {
+			stage.close();
+			try {
+				new ClientConnectionScreen().start(new Stage());
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		});
+		HBox top = new HBox(20, title, subtitle, logout);
+		HBox.setHgrow(subtitle, Priority.ALWAYS);
+
+		parkCombo.getItems().addAll("Carmel Park", "Jordan Park", "Banias Park", "Safari Zoo", "Ramon Crater",
+				"Hula Valley");
+		parkCombo.setValue("Carmel Park");
+
+		Button active = new Button("Visitors In Park Now");
+		active.setOnAction(e -> {
+			try {
+				Message r = request(new Message("GET_ACTIVE_VISITORS", parkCombo.getValue()));
+				if ("ACTIVE_VISITORS".equals(r.getCommand())) {
+					result.setText("In " + parkCombo.getValue() + " now: " + r.getData() + " visitor(s).");
+				}
+			} catch (Exception ex) {
+				result.setText("Server connection error.");
+			}
+		});
+
+		// --- Check-in / Check-out by booking ID ---
+		TextField bookingId = new TextField();
+		bookingId.setPromptText("Booking ID");
+		Button checkIn = new Button("Check In");
+		Button checkOut = new Button("Check Out");
+
+		checkIn.setOnAction(e -> {
+			Integer id = parseId(bookingId.getText());
+			if (id == null) return;
+			try {
+				Message r = request(new Message("CHECKIN", id));
+				if ("CHECKIN_OK".equals(r.getCommand())) {
+					result.setText(String.valueOf(r.getData()));
+				} else {
+					new Alert(Alert.AlertType.ERROR, String.valueOf(r.getData())).showAndWait();
+				}
+			} catch (Exception ex) {
+				result.setText("Server connection error.");
+			}
+		});
+
+		checkOut.setOnAction(e -> {
+			Integer id = parseId(bookingId.getText());
+			if (id == null) return;
+			try {
+				Message r = request(new Message("CHECKOUT", id));
+				result.setText("CHECKOUT_OK".equals(r.getCommand()) ? "Check-out registered." : "Check-out failed.");
+			} catch (Exception ex) {
+				result.setText("Server connection error.");
+			}
+		});
+
+		HBox entryRow = new HBox(10, new Label("Booking ID:"), bookingId, checkIn, checkOut);
+
+		// --- Casual walk-in ---
+		TextField casualCount = new TextField("1");
+		Button casual = new Button("Admit Walk-in");
+		casual.setOnAction(e -> {
+			int n;
+			try {
+				n = Integer.parseInt(casualCount.getText().trim());
+			} catch (NumberFormatException ex) {
+				new Alert(Alert.AlertType.ERROR, "Visitors must be a number.").showAndWait();
+				return;
+			}
+			Booking b = new Booking(0, "CASUAL", parkCombo.getValue(), LocalDate.now(),
+					LocalTime.now().withSecond(0).withNano(0), n, "Entered");
+			b.setVisitorType("Regular Visitor");
+			try {
+				Message r = request(new Message("CASUAL_VISIT", b));
+				if ("CASUAL_OK".equals(r.getCommand())) {
+					result.setText(String.valueOf(r.getData()));
+				} else {
+					new Alert(Alert.AlertType.ERROR, String.valueOf(r.getData())).showAndWait();
+				}
+			} catch (Exception ex) {
+				result.setText("Server connection error.");
+			}
+		});
+		HBox casualRow = new HBox(10, new Label("Walk-in visitors:"), casualCount, casual);
+
+		result.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+		result.setWrapText(true);
+
+		GridPane parkRow = new GridPane();
+		parkRow.setHgap(10);
+		parkRow.addRow(0, new Label("Park:"), parkCombo, active);
+
+		VBox layout = new VBox(15, top, new Separator(), parkRow, new Separator(), entryRow, casualRow,
+				new Separator(), result);
+		layout.setPadding(new Insets(20));
+		stage.setScene(new Scene(layout, 640, 380));
+		stage.show();
+	}
+
+	private Integer parseId(String s) {
+		try {
+			return Integer.parseInt(s.trim());
+		} catch (Exception ex) {
+			new Alert(Alert.AlertType.ERROR, "Enter a valid numeric Booking ID.").showAndWait();
+			return null;
+		}
+	}
+}

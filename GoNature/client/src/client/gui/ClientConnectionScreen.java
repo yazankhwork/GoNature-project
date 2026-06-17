@@ -98,9 +98,24 @@ public class ClientConnectionScreen extends Application {
 				String res = resMsg.getCommand();
 
 				if ("LOGIN_SUCCESS_EMPLOYEE".equals(res)) {
-					String[] dbData = (String[]) resMsg.getData();
-					WorkerDashboard.loggedInEmpName = dbData[1]; 
-					primaryStage.close(); new WorkerDashboard().start(new Stage());
+				    String[] dbData = (String[]) resMsg.getData();
+				    String role = (dbData.length > 2 && dbData[2] != null) ? dbData[2] : "SERVICE_REP";
+				    primaryStage.close();
+				    switch (role) {
+				        case "ENTRY_WORKER":
+				            EntryWorkerDashboard.loggedInEmpName = dbData[1];
+				            new EntryWorkerDashboard().start(new Stage());
+				            break;
+				        case "PARK_MANAGER":
+				            new ParkManagerScreen().start(new Stage());
+				            break;
+				        case "DEPT_MANAGER":
+				            new ReportsScreen().start(new Stage());
+				            break;
+				        default:
+				            WorkerDashboard.loggedInEmpName = dbData[1];
+				            new WorkerDashboard().start(new Stage());
+				    }
 				} else if ("WRONG_PASSWORD".equals(res)) { 
 					statusLabel.setText("Error: Wrong Password!");
 				} else { 
