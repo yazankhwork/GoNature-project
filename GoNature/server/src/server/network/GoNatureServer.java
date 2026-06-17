@@ -19,17 +19,18 @@ public class GoNatureServer {
 	private static boolean isRunning = false;
 	private static ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-	public static void startServer() {
-		isRunning = true;
-		dbController.connectToDatabase();
-		scheduler.scheduleAtFixedRate(dbController::manageWaitingListQueue, 0, 1, TimeUnit.MINUTES);
-		try {
-			serverSocket = new ServerSocket(PORT);
-			System.out.println("Server is running on port " + PORT);
-			while (isRunning) {
-				handleClient(serverSocket.accept());
-			}
-		} catch (SocketException se) {
+	public static void startServer(String dbHost, String dbUser, String dbPass) {
+	    isRunning = true;
+	    dbController.connectToDatabase(dbHost, dbUser, dbPass);
+	    scheduler.scheduleAtFixedRate(dbController::manageWaitingListQueue, 0, 1, TimeUnit.MINUTES);
+	    try {
+	        serverSocket = new ServerSocket(PORT);
+	        System.out.println("Server is running on port " + PORT);
+	        while (isRunning) {
+	            Socket clientSocket = serverSocket.accept();
+	            new Thread(() -> handleClient(clientSocket)).start();
+	        }
+	    } catch (SocketException se) {
 			System.out.println("Server stopped.");
 		} catch (IOException e) {
 			e.printStackTrace();

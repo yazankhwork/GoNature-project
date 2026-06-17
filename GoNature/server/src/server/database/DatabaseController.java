@@ -10,16 +10,18 @@ import common.Booking;
 public class DatabaseController {
 	private Connection connection;
 
-	public void connectToDatabase() {
-		try {
-			connection = DriverManager.getConnection("jdbc:mysql://localhost/gonature_db?serverTimezone=Asia/Jerusalem", "root", "Georgesini2001");
-			System.out.println("Database connected successfully!");
-		} catch (SQLException e) { System.err.println("DB Connection Error: " + e.getMessage()); }
+	public void connectToDatabase(String host, String user, String pass) {
+	    try {
+	        String url = "jdbc:mysql://" + host + "/gonature_db"
+	                   + "?serverTimezone=Asia/Jerusalem&useSSL=false&allowPublicKeyRetrieval=true";
+	        connection = DriverManager.getConnection(url, user, pass);
+	        System.out.println("Database connected successfully!");
+	    } catch (SQLException e) { System.err.println("DB Connection Error: " + e.getMessage()); }
 	}
 
 	public int countVisitorsAt(String parkName, LocalDate date, LocalTime time) {
 		int total = 0;
-		String q1 = "SELECT SUM(visitors_count) FROM bookings WHERE park_name = ? AND visit_date = ? AND visit_time = ? AND status NOT IN ('Cancelled', 'Waiting List')";
+		String q1 = "SELECT SUM(visitors_count) FROM bookings WHERE park_name = ? AND visit_date = ? AND visit_time = ? AND status NOT IN ('Cancelled', 'Waiting List', 'Exited)";
 		try (PreparedStatement ps = connection.prepareStatement(q1)) {
 			ps.setString(1, parkName); ps.setDate(2, Date.valueOf(date)); ps.setTime(3, Time.valueOf(time));
 			ResultSet rs = ps.executeQuery(); if (rs.next()) total += rs.getInt(1);
@@ -218,7 +220,7 @@ public class DatabaseController {
 					int visitors = rs.getInt("visitors_count"); String slotKey = park + "_" + date + "_" + time;
 					if (blockedSlots.contains(slotKey)) continue;
 
-					if (countVisitorsAt(park, date, time) + visitors <= 150) {
+					if (countVisitorsAt(park, date, time) + visitors <= getParkCapacity(park)) {
 						PreparedStatement psNotify = connection.prepareStatement("UPDATE waitinglist SET notified_time = CURRENT_TIMESTAMP WHERE waiting_id = ?");
 						psNotify.setInt(1, wId); psNotify.executeUpdate();
 					} else { blockedSlots.add(slotKey); }
