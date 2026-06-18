@@ -15,8 +15,9 @@ import javafx.stage.Stage;
 import server.network.GoNatureServer;
 
 /**
- * Server control window. Lets the operator type the database connection details
- * at runtime (so the same project runs on any laptop) and start/stop the server.
+ * Server control window. The operator types DB host/user/password and the port
+ * the server should listen on; Start connects the DB and calls listen(). The
+ * status label shows the real result (running, DB error, or port in use).
  */
 public class ServerGUI extends Application {
 
@@ -28,6 +29,7 @@ public class ServerGUI extends Application {
 		TextField dbUserField = new TextField("root");
 		PasswordField dbPassField = new PasswordField();
 		dbPassField.setPromptText("Your MySQL password");
+		TextField portField = new TextField("5555");
 
 		GridPane form = new GridPane();
 		form.setHgap(10);
@@ -35,6 +37,7 @@ public class ServerGUI extends Application {
 		form.addRow(0, new Label("DB Host:"), dbHostField);
 		form.addRow(1, new Label("DB User:"), dbUserField);
 		form.addRow(2, new Label("DB Password:"), dbPassField);
+		form.addRow(3, new Label("Server Port:"), portField);
 
 		Label statusLabel = new Label("Status: SERVER IS OFF");
 		statusLabel.setStyle("-fx-text-fill: red; -fx-font-weight: bold; -fx-font-size: 14px;");
@@ -44,15 +47,26 @@ public class ServerGUI extends Application {
 		stopBtn.setDisable(true);
 
 		startBtn.setOnAction(e -> {
-			String host = dbHostField.getText().trim();
-			String user = dbUserField.getText().trim();
-			String pass = dbPassField.getText();
-			new Thread(() -> GoNatureServer.startServer(host, user, pass)).start();
+			int port;
+			try {
+				port = Integer.parseInt(portField.getText().trim());
+			} catch (NumberFormatException ex) {
+				statusLabel.setText("Status: INVALID PORT");
+				return;
+			}
 
-			statusLabel.setText("Status: SERVER IS RUNNING");
-			statusLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold; -fx-font-size: 14px;");
-			startBtn.setDisable(true);
-			stopBtn.setDisable(false);
+			boolean ok = GoNatureServer.startServer(dbHostField.getText().trim(), dbUserField.getText().trim(),
+					dbPassField.getText(), port);
+
+			if (ok) {
+				statusLabel.setText("Status: SERVER IS RUNNING (port " + port + ")");
+				statusLabel.setStyle("-fx-text-fill: green; -fx-font-weight: bold; -fx-font-size: 14px;");
+				startBtn.setDisable(true);
+				stopBtn.setDisable(false);
+			} else {
+				statusLabel.setText("Status: " + GoNatureServer.getLastError());
+				statusLabel.setStyle("-fx-text-fill: red; -fx-font-weight: bold; -fx-font-size: 14px;");
+			}
 		});
 
 		stopBtn.setOnAction(e -> {
@@ -64,18 +78,14 @@ public class ServerGUI extends Application {
 		});
 
 		HBox buttons = new HBox(10, startBtn, stopBtn);
-		VBox layout = new VBox(15, new Label("Database connection:"), form, buttons, statusLabel);
+		VBox layout = new VBox(15, new Label("Server settings:"), form, buttons, statusLabel);
 		layout.setPadding(new Insets(20));
 
-		primaryStage.setScene(new Scene(layout, 360, 250));
+		primaryStage.setScene(new Scene(layout, 380, 300));
+		primaryStage.setOnCloseRequest(ev -> GoNatureServer.stopServer());
 		primaryStage.show();
 	}
 
-	/**
-	 * Launches the server window.
-	 *
-	 * @param args command-line arguments
-	 */
 	public static void main(String[] args) {
 		launch(args);
 	}

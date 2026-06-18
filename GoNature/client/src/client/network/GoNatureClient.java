@@ -35,9 +35,9 @@ public class GoNatureClient extends AbstractClient {
 	}
 
 	/**
-	 * Sends a request and blocks until the response arrives (max 10 seconds).
-	 * Safe to call from the JavaFX thread because it only returns the value;
-	 * it does not touch the UI itself.
+	 * Sends a request and blocks until the response arrives (max 10 seconds). Safe
+	 * to call from the JavaFX thread because it only returns the value; it does not
+	 * touch the UI itself.
 	 */
 	public synchronized Message sendAndWait(Message request) throws IOException {
 		responses.clear();

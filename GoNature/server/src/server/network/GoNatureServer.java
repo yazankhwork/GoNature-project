@@ -22,96 +22,93 @@ import ocsf.server.ConnectionToClient;
  * handleMessageFromClient; the server is the only component touching the DB.
  */
 public class GoNatureServer extends AbstractServer {
-	
+
 	private static final int DEFAULT_PORT = 5555;
 	private static GoNatureServer runningServer;
-	private static Thread serverThread;
+	private static String lastError = "";
+
+	/** Reason the last startServer attempt failed (shown by the Server GUI). */
+	public static String getLastError() {
+		return lastError;
+	}
+
 	private final DatabaseController dbController = new DatabaseController();
 	private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
 	public GoNatureServer(int port) {
 		super(port);
 	}
+
 	public static synchronized boolean startServer(String host, String user, String pass) {
-	    return startServer(host, user, pass, DEFAULT_PORT);
+		return startServer(host, user, pass, DEFAULT_PORT);
 	}
 
 	/**
-	 * Starts the GoNature OCSF server using a selected port.
-	 * The server decides which port to listen on, and clients connect to that port.
+	 * Starts the GoNature OCSF server using a selected port. The server decides
+	 * which port to listen on, and clients connect to that port.
 	 */
 	public static synchronized boolean startServer(String host, String user, String pass, int port) {
-	    if (runningServer != null) {
-	        System.out.println("Server is already running.");
-	        return false;
-	    }
+		if (runningServer != null) {
+			lastError = "Server is already running.";
+			return false;
+		}
 
-	    try {
-	        GoNatureServer server = new GoNatureServer(port);
+		GoNatureServer server = new GoNatureServer(port);
 
-	        boolean dbConnected = server.connectDB(host, user, pass);
+		// Do not start if the database connection fails.
+		if (!server.connectDB(host, user, pass)) {
+			lastError = "Database connection failed. Check host / user / password.";
+			server.shutdownScheduler();
+			return false;
+		}
 
-	        if (!dbConnected) {
-	            System.err.println("Database connection failed. Server was not started.");
-	            return false;
-	        }
-
-	        runningServer = server;
-
-	        serverThread = new Thread(() -> {
-	            try {
-	                runningServer.listen();
-	            } catch (Exception e) {
-	                e.printStackTrace();
-	            }
-	        });
-
-	        serverThread.setDaemon(true);
-	        serverThread.start();
-
-	        System.out.println("GoNature OCSF server started on port " + port);
-	        return true;
-
-	    } catch (Exception e) {
-	        e.printStackTrace();
-	        runningServer = null;
-	        serverThread = null;
-	        return false;
-	    }
+		try {
+			// OCSF listen() binds the port and starts its own accept thread (it does
+			// not block). It throws IOException if the port is already in use.
+			server.listen();
+			runningServer = server;
+			lastError = "";
+			System.out.println("GoNature OCSF server started on port " + port);
+			return true;
+		} catch (java.io.IOException e) {
+			lastError = "Port " + port + " is already in use (or cannot be opened).";
+			server.shutdownScheduler();
+			return false;
+		}
 	}
 
 	/**
-	 * Stops the GoNature OCSF server.
-	 * This method is used by the Server GUI.
+	 * Stops the GoNature OCSF server. This method is used by the Server GUI.
 	 */
 	public static synchronized boolean stopServer() {
-	    if (runningServer == null) {
-	        System.out.println("Server is not running.");
-	        return false;
-	    }
+		if (runningServer == null) {
+			System.out.println("Server is not running.");
+			return false;
+		}
 
-	    try {
-	        GoNatureServer serverToStop = runningServer;
+		try {
+			GoNatureServer serverToStop = runningServer;
 
-	        runningServer = null;
-	        serverThread = null;
+			runningServer = null;
 
-	        serverToStop.close();
-	        serverToStop.shutdownScheduler();
+			serverToStop.close();
+			serverToStop.shutdownScheduler();
 
-	        System.out.println("GoNature OCSF server stopped.");
-	        return true;
+			System.out.println("GoNature OCSF server stopped.");
+			return true;
 
-	    } catch (Exception e) {
-	        e.printStackTrace();
-	        return false;
-	    }
+		} catch (Exception e) {
+			e.printStackTrace();
+			return false;
+		}
 	}
+
 	private void shutdownScheduler() {
-	    if (!scheduler.isShutdown()) {
-	        scheduler.shutdownNow();
-	    }
+		if (!scheduler.isShutdown()) {
+			scheduler.shutdownNow();
+		}
 	}
+
 	/** Connects the database. Returns true on success. */
 	public boolean connectDB(String host, String user, String pass) {
 		return dbController.connectToDatabase(host, user, pass);
@@ -125,8 +122,8 @@ public class GoNatureServer extends AbstractServer {
 
 	@Override
 	protected void serverStopped() {
-	    System.out.println("Server stopped.");
-	    shutdownScheduler();
+		System.out.println("Server stopped.");
+		shutdownScheduler();
 	}
 
 	@Override

@@ -17,11 +17,11 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 /**
-* Entry-worker dashboard: gate check-in by booking ID, check-out, casual
-* walk-in admission, and a live count of visitors currently in the park.
-* Written in the same code-built JavaFX + string-command style as the rest of
-* this project (no FXML), so it drops straight into the existing client.
-*/
+ * Entry-worker dashboard: gate check-in by booking ID, check-out, casual
+ * walk-in admission, and a live count of visitors currently in the park.
+ * Written in the same code-built JavaFX + string-command style as the rest of
+ * this project (no FXML), so it drops straight into the existing client.
+ */
 public class EntryWorkerDashboard extends Application {
 
 	/** Set by the login screen before this dashboard opens. */
@@ -30,7 +30,9 @@ public class EntryWorkerDashboard extends Application {
 	private final ComboBox<String> parkCombo = new ComboBox<>();
 	private final Label result = new Label("Ready.");
 
-	/** One request, one response, matching this project's socket-per-action style. */
+	/**
+	 * One request, one response, matching this project's socket-per-action style.
+	 */
 	private static Message request(Message m) throws Exception {
 		return ClientSession.send(m);
 	}
@@ -81,7 +83,8 @@ public class EntryWorkerDashboard extends Application {
 
 		checkIn.setOnAction(e -> {
 			Integer id = parseId(bookingId.getText());
-			if (id == null) return;
+			if (id == null)
+				return;
 			try {
 				Message r = request(new Message("CHECKIN", id));
 				if ("CHECKIN_OK".equals(r.getCommand())) {
@@ -96,7 +99,8 @@ public class EntryWorkerDashboard extends Application {
 
 		checkOut.setOnAction(e -> {
 			Integer id = parseId(bookingId.getText());
-			if (id == null) return;
+			if (id == null)
+				return;
 			try {
 				Message r = request(new Message("CHECKOUT", id));
 				result.setText("CHECKOUT_OK".equals(r.getCommand()) ? "Check-out registered." : "Check-out failed.");
@@ -141,8 +145,8 @@ public class EntryWorkerDashboard extends Application {
 		parkRow.setHgap(10);
 		parkRow.addRow(0, new Label("Park:"), parkCombo, active);
 
-		VBox layout = new VBox(15, top, new Separator(), parkRow, new Separator(), entryRow, casualRow,
-				new Separator(), result);
+		VBox layout = new VBox(15, top, new Separator(), parkRow, new Separator(), entryRow, casualRow, new Separator(),
+				result);
 		layout.setPadding(new Insets(20));
 		stage.setScene(new Scene(layout, 640, 380));
 		stage.show();

@@ -11,7 +11,6 @@ import common.Message;
  */
 public class ClientSession {
 
-	private static final int PORT = 5555;
 	private static GoNatureClient client;
 
 	/** Optional shared login info that any screen can read. */
@@ -19,17 +18,20 @@ public class ClientSession {
 	public static String role = "";
 
 	/** Opens (or re-opens) the single connection to the given host. */
-	public static synchronized void connect(String host) throws IOException {
+	public static synchronized void connect(String host, int port) throws IOException {
 		if (client != null && client.isConnected()) {
-			try { client.closeConnection(); } catch (IOException ignore) { }
+			try {
+				client.closeConnection();
+			} catch (IOException ignore) {
+			}
 		}
-		client = new GoNatureClient(host, PORT);
+		client = new GoNatureClient(host, port);
 		client.openConnection();
 	}
 
 	/**
-	 * Sends a request and returns the response. Never returns null: on any error
-	 * it returns a Message with command "ERROR" so screens never crash.
+	 * Sends a request and returns the response. Never returns null: on any error it
+	 * returns a Message with command "ERROR" so screens never crash.
 	 */
 	public static synchronized Message send(Message request) {
 		try {
@@ -44,7 +46,11 @@ public class ClientSession {
 
 	/** Closes the shared connection (used on logout/exit). */
 	public static synchronized void close() {
-		try { if (client != null) client.closeConnection(); } catch (IOException ignore) { }
+		try {
+			if (client != null)
+				client.closeConnection();
+		} catch (IOException ignore) {
+		}
 		client = null;
 	}
 

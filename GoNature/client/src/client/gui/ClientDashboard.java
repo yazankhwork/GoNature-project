@@ -500,57 +500,50 @@ public class ClientDashboard extends Application {
 	}
 
 	private void checkLiveCapacity() {
-	    try {
-	        if (datePicker.getValue() == null) {
-	            liveCapacityLabel.setText("Please choose a date first.");
-	            return;
-	        }
+		try {
+			if (datePicker.getValue() == null) {
+				liveCapacityLabel.setText("Please choose a date first.");
+				return;
+			}
 
-	        if (datePicker.getValue().isBefore(LocalDate.now())) {
-	            liveCapacityLabel.setText("⚠️ Cannot book past dates!");
-	            return;
-	        }
+			if (datePicker.getValue().isBefore(LocalDate.now())) {
+				liveCapacityLabel.setText("⚠️ Cannot book past dates!");
+				return;
+			}
 
-	        if (timeInput.getText() == null || timeInput.getText().trim().isEmpty()) {
-	            liveCapacityLabel.setText("Please enter a time first.");
-	            return;
-	        }
+			if (timeInput.getText() == null || timeInput.getText().trim().isEmpty()) {
+				liveCapacityLabel.setText("Please enter a time first.");
+				return;
+			}
 
-	        LocalTime time = LocalTime.parse(timeInput.getText().trim());
+			LocalTime time = LocalTime.parse(timeInput.getText().trim());
 
-	        if (time.isBefore(LocalTime.of(8, 0)) || time.isAfter(LocalTime.of(18, 0))) {
-	            liveCapacityLabel.setText("Park Status: Closed");
-	            return;
-	        }
+			if (time.isBefore(LocalTime.of(8, 0)) || time.isAfter(LocalTime.of(18, 0))) {
+				liveCapacityLabel.setText("Park Status: Closed");
+				return;
+			}
 
-	        Booking b = new Booking(
-	                0,
-	                loggedInVisitorId,
-	                parkCombo.getValue(),
-	                datePicker.getValue(),
-	                time,
-	                0,
-	                "Pending"
-	        );
+			Booking b = new Booking(0, loggedInVisitorId, parkCombo.getValue(), datePicker.getValue(), time, 0,
+					"Pending");
 
-	        Message response = ClientSession.send(new Message("GET_AVAILABLE_SPOTS", b));
+			Message response = ClientSession.send(new Message("GET_AVAILABLE_SPOTS", b));
 
-	        if ("AVAILABLE_SPOTS_RESPONSE".equals(response.getCommand())) {
-	            int emptyTickets = (int) response.getData();
+			if ("AVAILABLE_SPOTS_RESPONSE".equals(response.getCommand())) {
+				int emptyTickets = (int) response.getData();
 
-	            if (emptyTickets > 0) {
-	                liveCapacityLabel.setText("✓ " + emptyTickets
-	                        + " empty spots available! You can proceed with a regular booking.");
-	            } else {
-	                liveCapacityLabel.setText(
-	                        "⚠️ PARK IS FULL! Hitting 'Add New Booking' will place you on the WAITING LIST.");
-	            }
-	        }
+				if (emptyTickets > 0) {
+					liveCapacityLabel.setText(
+							"✓ " + emptyTickets + " empty spots available! You can proceed with a regular booking.");
+				} else {
+					liveCapacityLabel
+							.setText("⚠️ PARK IS FULL! Hitting 'Add New Booking' will place you on the WAITING LIST.");
+				}
+			}
 
-	    } catch (Exception ex) {
-	        liveCapacityLabel.setText("Could not check live capacity.");
-	        ex.printStackTrace();
-	    }
+		} catch (Exception ex) {
+			liveCapacityLabel.setText("Could not check live capacity.");
+			ex.printStackTrace();
+		}
 	}
 
 	private void loadDataFromServer() {
@@ -569,12 +562,13 @@ public class ClientDashboard extends Application {
 	private void sendCommandToServer(String command, Object data) {
 		try {
 			Message response = ClientSession.send(new Message(command, data));
-			if (response.getData() != null && command.matches("ADD_DATA|CANCEL_DATA|PAY_WAITING_LIST|ADD_SPLIT_BOOKING")) {
-			    new Alert(Alert.AlertType.INFORMATION, response.getData().toString(), ButtonType.OK).showAndWait();
-			    if ("SUCCESS_PAID".equals(response.getCommand())) {
-			        NotificationSimulator.send(loggedInVisitorId + "@gonature.com", null,
-			                "Booking Confirmation", response.getData().toString());
-			    }
+			if (response.getData() != null
+					&& command.matches("ADD_DATA|CANCEL_DATA|PAY_WAITING_LIST|ADD_SPLIT_BOOKING")) {
+				new Alert(Alert.AlertType.INFORMATION, response.getData().toString(), ButtonType.OK).showAndWait();
+				if ("SUCCESS_PAID".equals(response.getCommand())) {
+					NotificationSimulator.send(loggedInVisitorId + "@gonature.com", null, "Booking Confirmation",
+							response.getData().toString());
+				}
 			}
 			responseLabel.setText("Action: " + response.getCommand());
 		} catch (Exception ex) {

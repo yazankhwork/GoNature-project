@@ -97,7 +97,8 @@ public class ReportsScreen extends Application {
 			y.setLabel("Visitors");
 
 			BarChart<String, Number> chart = new BarChart<>(x, y);
-			chart.setTitle("Visits - " + parkCombo.getValue() + " " + monthCombo.getValue() + "/" + yearCombo.getValue());
+			chart.setTitle(
+					"Visits - " + parkCombo.getValue() + " " + monthCombo.getValue() + "/" + yearCombo.getValue());
 
 			XYChart.Series<String, Number> series = new XYChart.Series<>();
 			series.setName("Realized visitors");
