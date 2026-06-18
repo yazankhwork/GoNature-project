@@ -36,14 +36,7 @@ public class WorkerDashboard extends Application {
 
 		Button btnLogout = new Button("Logout");
 		btnLogout.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold;");
-		btnLogout.setOnAction(e -> {
-			primaryStage.close();
-			try {
-				new ClientConnectionScreen().start(new Stage());
-			} catch (Exception ex) {
-				ex.printStackTrace();
-			}
-		});
+		btnLogout.setOnAction(e -> LogoutHelper.logout(primaryStage));
 
 		// ==========================================
 		// TAB 1: Subscription Registration
@@ -64,8 +57,22 @@ public class WorkerDashboard extends Application {
 
 		TextField subVisitorId = new TextField();
 		subVisitorId.setPromptText("Visitor ID (9 digits)");
+
+		TextField subFirstName = new TextField();
+		subFirstName.setPromptText("First Name");
+
+		TextField subLastName = new TextField();
+		subLastName.setPromptText("Last Name");
+
+		TextField subPhone = new TextField();
+		subPhone.setPromptText("Phone Number");
+
+		TextField subEmail = new TextField();
+		subEmail.setPromptText("Email");
+
 		TextField subFamSize = new TextField();
 		subFamSize.setPromptText("Total Family Members");
+
 		ComboBox<String> subPayment = new ComboBox<>();
 		subPayment.getItems().addAll("Cash", "Credit Card");
 		subPayment.setValue("Cash");
@@ -81,12 +88,27 @@ public class WorkerDashboard extends Application {
 
 		subGrid.add(new Label("Visitor ID:"), 0, 0);
 		subGrid.add(subVisitorId, 1, 0);
-		subGrid.add(new Label("Family Members:"), 0, 1);
-		subGrid.add(subFamSize, 1, 1);
-		subGrid.add(new Label("Payment Method:"), 0, 2);
-		subGrid.add(subPayment, 1, 2);
-		subGrid.add(new Label("Card Number:"), 0, 3);
-		subGrid.add(subCcInput, 1, 3);
+
+		subGrid.add(new Label("First Name:"), 0, 1);
+		subGrid.add(subFirstName, 1, 1);
+
+		subGrid.add(new Label("Last Name:"), 0, 2);
+		subGrid.add(subLastName, 1, 2);
+
+		subGrid.add(new Label("Phone:"), 0, 3);
+		subGrid.add(subPhone, 1, 3);
+
+		subGrid.add(new Label("Email:"), 0, 4);
+		subGrid.add(subEmail, 1, 4);
+
+		subGrid.add(new Label("Family Members:"), 0, 5);
+		subGrid.add(subFamSize, 1, 5);
+
+		subGrid.add(new Label("Payment Method:"), 0, 6);
+		subGrid.add(subPayment, 1, 6);
+
+		subGrid.add(new Label("Card Number:"), 0, 7);
+		subGrid.add(subCcInput, 1, 7);
 
 		Button btnRegSub = new Button("Register Subscription & Generate Number");
 		btnRegSub.setStyle(
@@ -96,10 +118,26 @@ public class WorkerDashboard extends Application {
 
 		btnRegSub.setOnAction(e -> {
 			String vid = subVisitorId.getText().trim();
+			String firstName = subFirstName.getText().trim();
+			String lastName = subLastName.getText().trim();
+			String phone = subPhone.getText().trim();
+			String email = subEmail.getText().trim();
+
 			if (!vid.matches("\\d{9}")) {
 				subResponse.setText("Invalid Visitor ID!");
 				return;
 			}
+
+			if (firstName.isEmpty() || lastName.isEmpty() || phone.isEmpty() || email.isEmpty()) {
+				subResponse.setText("Name, phone, and email are required!");
+				return;
+			}
+
+			if (!email.contains("@")) {
+				subResponse.setText("Invalid email!");
+				return;
+			}
+
 			int famSize;
 			try {
 				famSize = Integer.parseInt(subFamSize.getText().trim());
@@ -107,8 +145,16 @@ public class WorkerDashboard extends Application {
 				subResponse.setText("Invalid family size!");
 				return;
 			}
-			String paymentData = "Cash".equals(subPayment.getValue()) ? "PAID_CASH" : subCcInput.getText().trim();
-			if ("Credit Card".equals(subPayment.getValue()) && paymentData.isEmpty()) {
+
+			if (famSize < 1) {
+				subResponse.setText("Family members must be at least 1!");
+				return;
+			}
+
+			String paymentMethod = subPayment.getValue();
+			String creditCard = "Credit Card".equals(paymentMethod) ? subCcInput.getText().trim() : "";
+
+			if ("Credit Card".equals(paymentMethod) && creditCard.isEmpty()) {
 				subResponse.setText("Credit card number required!");
 				return;
 			}
@@ -117,10 +163,16 @@ public class WorkerDashboard extends Application {
 
 				ArrayList<Object> subData = new ArrayList<>();
 				subData.add(vid);
+				subData.add(firstName);
+				subData.add(lastName);
+				subData.add(phone);
+				subData.add(email);
 				subData.add(famSize);
-				subData.add(paymentData);
-				Message response = ClientSession.send(new Message("BUY_SUBSCRIPTION", subData));
+				subData.add(paymentMethod);
+				subData.add(creditCard);
 
+				Message response = ClientSession.send(new Message("BUY_SUBSCRIPTION", subData));
+				
 				if ("SUCCESS".equals(response.getCommand())) {
 					String subNum = response.getData().toString();
 					Alert alert = new Alert(Alert.AlertType.INFORMATION);
@@ -132,6 +184,10 @@ public class WorkerDashboard extends Application {
 					subResponse.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;");
 					subResponse.setText("Subscription #" + subNum + " created!");
 					subVisitorId.clear();
+					subFirstName.clear();
+					subLastName.clear();
+					subPhone.clear();
+					subEmail.clear();
 					subFamSize.clear();
 					subCcInput.clear();
 				} else {
@@ -234,7 +290,7 @@ public class WorkerDashboard extends Application {
 
 		mainLayout.getChildren().addAll(titleLabel, subTitle, tabPane, btnLogout);
 
-		Scene scene = new Scene(mainLayout, 550, 500);
+		Scene scene = new Scene(mainLayout, 650, 650);
 		primaryStage.setScene(scene);
 		primaryStage.show();
 	}

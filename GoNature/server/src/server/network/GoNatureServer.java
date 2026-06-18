@@ -118,6 +118,7 @@ public class GoNatureServer extends AbstractServer {
 	protected void serverStarted() {
 		System.out.println("Server listening on port " + getPort());
 		scheduler.scheduleAtFixedRate(dbController::manageWaitingListQueue, 0, 1, TimeUnit.MINUTES);
+		scheduler.scheduleAtFixedRate(dbController::processBookingConfirmations, 0, 1, TimeUnit.MINUTES);
 	}
 
 	@Override
@@ -179,8 +180,16 @@ public class GoNatureServer extends AbstractServer {
 				@SuppressWarnings("unchecked")
 				ArrayList<Object> subData = (ArrayList<Object>) data;
 
-				int subId = dbController.buySubscription((String) subData.get(0), (int) subData.get(1),
-						(String) subData.get(2));
+				int subId = dbController.buySubscription(
+						(String) subData.get(0), // visitor id
+						(String) subData.get(1), // first name
+						(String) subData.get(2), // last name
+						(String) subData.get(3), // phone
+						(String) subData.get(4), // email
+						(int) subData.get(5),    // family members
+						(String) subData.get(6), // payment method
+						(String) subData.get(7)  // credit card
+				);
 
 				if (subId > 0) {
 					response = new Message("SUCCESS", String.valueOf(subId));
@@ -216,7 +225,7 @@ public class GoNatureServer extends AbstractServer {
 			case "GET_AVAILABLE_SPOTS": {
 				Booking bSpots = (Booking) data;
 
-				int emptyTickets = dbController.getParkCapacity(bSpots.getParkName()) - dbController
+				int emptyTickets = dbController.getBookableCapacity(bSpots.getParkName()) - dbController
 						.countVisitorsAt(bSpots.getParkName(), bSpots.getVisitDate(), bSpots.getVisitTime());
 
 				response = new Message("AVAILABLE_SPOTS_RESPONSE", Math.max(0, emptyTickets));
@@ -229,7 +238,7 @@ public class GoNatureServer extends AbstractServer {
 				int current = dbController.countVisitorsAt(checkB.getParkName(), checkB.getVisitDate(),
 						checkB.getVisitTime());
 
-				int cap = dbController.getParkCapacity(checkB.getParkName());
+				int cap = dbController.getBookableCapacity(checkB.getParkName());
 				int req = checkB.getVisitorsCount();
 				int available = cap - current;
 
@@ -291,10 +300,18 @@ public class GoNatureServer extends AbstractServer {
 							ok ? "Successfully joined the Waiting List." : "Could not join waiting list.");
 
 				} else {
-					boolean saved = dbController.saveBooking(newB);
+					int current = dbController.countVisitorsAt(newB.getParkName(), newB.getVisitDate(), newB.getVisitTime());
+					int bookableCap = dbController.getBookableCapacity(newB.getParkName());
 
-					response = new Message(saved ? "SUCCESS_PAID" : "FAILED",
-							saved ? "Order approved. Total Paid: " + newB.getPrice() + " ILS"
+					if (current + newB.getVisitorsCount() > bookableCap) {
+						response = new Message("FAILED", "Could not save booking. Not enough bookable spots.");
+						break;
+					}
+					String code = dbController.saveBookingAndReturnCode(newB);
+
+					response = new Message(code != null ? "SUCCESS_PAID" : "FAILED",
+							code != null
+									? "Order approved. Total Paid: " + newB.getPrice() + " ILS\nConfirmation Code: " + code
 									: "Could not save booking.");
 				}
 
@@ -321,7 +338,13 @@ public class GoNatureServer extends AbstractServer {
 			}
 
 			case "LOAD_DATA": {
+				dbController.processBookingConfirmations();
 				response = new Message("SUCCESS", dbController.getUserBookings((String) data));
+				break;
+			}
+			case "GET_VISITOR_NOTIFICATIONS": {
+				response = new Message("VISITOR_NOTIFICATIONS",
+						dbController.getVisitorNotifications((String) data));
 				break;
 			}
 
@@ -332,11 +355,13 @@ public class GoNatureServer extends AbstractServer {
 			}
 
 			case "CONFIRM_ARRIVAL": {
+				dbController.processBookingConfirmations();
+
 				int confirmBookingId = Integer.parseInt(data.toString());
 				boolean ok = dbController.confirmArrival(confirmBookingId);
 
 				response = new Message(ok ? "ARRIVAL_CONFIRMED" : "FAILED",
-						ok ? "Arrival confirmed." : "Could not confirm arrival.");
+						ok ? "Arrival confirmed." : "Could not confirm arrival. The 2-hour confirmation deadline may have expired.");
 
 				break;
 			}
@@ -363,6 +388,7 @@ public class GoNatureServer extends AbstractServer {
 			}
 
 			case "CHECK_WAITINGLIST": {
+				dbController.manageWaitingListQueue();
 				ArrayList<Object> wlMsg = dbController.getWaitingListMessage((String) data);
 
 				if (wlMsg != null) {
@@ -378,10 +404,16 @@ public class GoNatureServer extends AbstractServer {
 				@SuppressWarnings("unchecked")
 				ArrayList<Object> payData = (ArrayList<Object>) data;
 
-				boolean claimOk = dbController.payAndClaimWaitingList((int) payData.get(0), (int) payData.get(1));
+				String code = dbController.payAndClaimWaitingListAndReturnCode((int) payData.get(0), (int) payData.get(1));
 
-				response = new Message(claimOk ? "SUCCESS_PAID" : "FAILED",
-						claimOk ? "Spot paid and claimed successfully!" : "Could not claim waiting-list spot.");
+				if (code != null) {
+					dbController.manageWaitingListQueue();
+				}
+
+				response = new Message(code != null ? "SUCCESS_PAID" : "FAILED",
+						code != null
+								? "Spot paid and claimed successfully!\nConfirmation Code: " + code
+								: "Could not claim waiting-list spot.");
 
 				break;
 			}
@@ -399,29 +431,111 @@ public class GoNatureServer extends AbstractServer {
 
 				break;
 			}
+			case "CREATE_PARK_CHANGE_REQUEST": {
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> p = (ArrayList<Object>) data;
 
+				boolean ok = dbController.createParkChangeRequest(
+						(String) p.get(0),
+						(int) p.get(1),
+						(int) p.get(2),
+						(int) p.get(3),
+						(String) p.get(4));
+
+				response = new Message(ok ? "REQUEST_CREATED" : "FAILED",
+						ok ? "Request sent to department manager." : "Could not create request.");
+				break;
+			}
+
+			case "GET_PENDING_PARK_CHANGE_REQUESTS": {
+				response = new Message("PENDING_PARK_CHANGE_REQUESTS",
+						dbController.getPendingParkChangeRequests());
+				break;
+			}
+			case "GET_PENDING_DISCOUNT_REQUESTS": {
+				response = new Message("PENDING_DISCOUNT_REQUESTS",
+						dbController.getPendingDiscountRequests());
+				break;
+			}
+
+			case "APPROVE_DISCOUNT_REQUEST": {
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> p = (ArrayList<Object>) data;
+
+				boolean ok = dbController.approveDiscountRequest((int) p.get(0), (String) p.get(1));
+
+				response = new Message(ok ? "DISCOUNT_REQUEST_APPROVED" : "FAILED",
+						ok ? "Discount request approved." : "Could not approve discount request.");
+				break;
+			}
+
+			case "REJECT_DISCOUNT_REQUEST": {
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> p = (ArrayList<Object>) data;
+
+				boolean ok = dbController.rejectDiscountRequest((int) p.get(0), (String) p.get(1));
+
+				response = new Message(ok ? "DISCOUNT_REQUEST_REJECTED" : "FAILED",
+						ok ? "Discount request rejected." : "Could not reject discount request.");
+				break;
+			}
+			case "CREATE_DISCOUNT_REQUEST": {
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> p = (ArrayList<Object>) data;
+
+				boolean ok = dbController.createDiscountRequest(
+						(String) p.get(0), // park name
+						(String) p.get(1), // discount name
+						(int) p.get(2),    // discount percent
+						(String) p.get(3)  // requested by
+				);
+
+				response = new Message(ok ? "DISCOUNT_REQUEST_CREATED" : "FAILED",
+						ok ? "Discount request sent to department manager."
+								: "Could not create discount request.");
+
+				break;
+			}
+
+			case "APPROVE_PARK_CHANGE_REQUEST": {
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> p = (ArrayList<Object>) data;
+
+				boolean ok = dbController.approveParkChangeRequest((int) p.get(0), (String) p.get(1));
+
+				response = new Message(ok ? "REQUEST_APPROVED" : "FAILED",
+						ok ? "Request approved. Park parameters updated." : "Could not approve request.");
+				break;
+			}
+
+			case "REJECT_PARK_CHANGE_REQUEST": {
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> p = (ArrayList<Object>) data;
+
+				boolean ok = dbController.rejectParkChangeRequest((int) p.get(0), (String) p.get(1));
+
+				response = new Message(ok ? "REQUEST_REJECTED" : "FAILED",
+						ok ? "Request rejected." : "Could not reject request.");
+				break;
+			}
 			case "GET_PARK_PARAMS": {
-				response = new Message("PARK_PARAMS", dbController.getParkCapacity((String) data));
+				response = new Message("PARK_PARAMS", dbController.getParkParams((String) data));
 
 				break;
 			}
 
 			case "UPDATE_PARK_CAPACITY": {
-				@SuppressWarnings("unchecked")
-				ArrayList<Object> p = (ArrayList<Object>) data;
-
-				boolean ok = dbController.updateParkCapacity((String) p.get(0), (int) p.get(1));
-
-				response = new Message(ok ? "SUCCESS" : "FAILED", ok ? null : "Could not update capacity.");
+				response = new Message("APPROVAL_REQUIRED",
+						"Park changes must be sent as a request to the department manager.");
 				break;
 			}
 
 			case "CHECKIN": {
-				int bid = (int) data;
-				Booking bk = dbController.getBookingById(bid);
+				String code = data.toString().trim();
+				Booking bk = dbController.getBookingByConfirmationCode(code);
 
 				if (bk == null) {
-					response = new Message("CHECKIN_FAILED", "No booking found with ID " + bid);
+					response = new Message("CHECKIN_FAILED", "No booking found with confirmation code " + code);
 					break;
 				}
 
@@ -457,7 +571,7 @@ public class GoNatureServer extends AbstractServer {
 					response = new Message("CHECKIN_FAILED", "Park is full, cannot admit this booking.");
 
 				} else {
-					dbController.setBookingStatus(bid, "Entered");
+					dbController.checkInBooking(bk.getBookingId());
 
 					response = new Message("CHECKIN_OK",
 							"Checked in " + bk.getVisitorsCount() + " visitor(s). Bill: " + bk.getPrice() + " ILS.");
@@ -467,8 +581,15 @@ public class GoNatureServer extends AbstractServer {
 			}
 
 			case "CHECKOUT": {
-				int bid = (int) data;
-				boolean ok = dbController.exitBooking(bid);
+				String code = data.toString().trim();
+				Booking bk = dbController.getBookingByConfirmationCode(code);
+
+				if (bk == null) {
+					response = new Message("CHECKOUT_FAILED", "No booking found with confirmation code " + code);
+					break;
+				}
+
+				boolean ok = dbController.exitBooking(bk.getBookingId());
 
 				response = new Message(ok ? "CHECKOUT_OK" : "CHECKOUT_FAILED",
 						ok ? "Check-out registered." : "Check-out failed. Booking must be currently Entered.");
@@ -491,16 +612,36 @@ public class GoNatureServer extends AbstractServer {
 					response = new Message("CASUAL_FAILED", "Park is full. No room for a walk-in now.");
 
 				} else {
-					int bill = cb.getVisitorsCount() * 30;
+					boolean guideGroup = cb.isGuideGroup() || "Guide".equals(cb.getVisitorType());
+
+					int bill;
+					if (guideGroup) {
+						if (cb.getVisitorsCount() < 2 || cb.getVisitorsCount() > 15) {
+							response = new Message("CASUAL_FAILED",
+									"Casual group with guide must include 2 to 15 people including the guide.");
+							break;
+						}
+
+						bill = (int) Math.round(cb.getVisitorsCount() * 30 * 0.90);
+
+						cb.setVisitorType("Guide");
+						cb.setGuideGroup(true);
+						cb.setSubscriber(false);
+					} else {
+						bill = cb.getVisitorsCount() * 30;
+
+						cb.setVisitorType("Regular Visitor");
+						cb.setGuideGroup(false);
+						cb.setSubscriber(false);
+					}
 
 					cb.setStatus("Entered");
 					cb.setPrice(bill);
-					cb.setVisitorType("Regular Visitor");
 
 					boolean saved = dbController.saveBooking(cb);
 
 					response = new Message(saved ? "CASUAL_OK" : "CASUAL_FAILED",
-							saved ? "Walk-in admitted. Bill: " + bill + " ILS." : "Could not register walk-in.");
+							saved ? "Walk-in admitted. Bill: " + bill + " ILS." : "Could not register walk-in.");;
 				}
 
 				break;

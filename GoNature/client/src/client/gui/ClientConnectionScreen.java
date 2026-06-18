@@ -66,10 +66,10 @@ public class ClientConnectionScreen extends Application {
 		idInput.setPromptText("ID Number");
 		idInput.setStyle("-fx-border-color: #2ecc71; -fx-background-radius: 5px; -fx-border-radius: 5px;");
 		PasswordField passInput = new PasswordField();
-		passInput.setPromptText("Password");
+		passInput.setPromptText("Password (Employees only)");
 		passInput.setStyle("-fx-border-color: #2ecc71; -fx-background-radius: 5px; -fx-border-radius: 5px;");
 		TextField nameInput = new TextField();
-		nameInput.setPromptText("Full Name (Visitors Only)");
+		nameInput.setPromptText("Username (Visitors only)");
 		nameInput.setStyle("-fx-border-color: #2ecc71; -fx-background-radius: 5px; -fx-border-radius: 5px;");
 
 		Button loginBtn = new Button("Visitor Login");
@@ -90,7 +90,7 @@ public class ClientConnectionScreen extends Application {
 		Label statusLabel = new Label();
 		statusLabel.setStyle("-fx-text-fill: #c0392b; -fx-font-weight: bold;");
 
-		authLayout.getChildren().addAll(welcomeLabel, subLabel, idInput, passInput, nameInput, buttonsBox, workerBox,
+		authLayout.getChildren().addAll(welcomeLabel, subLabel, idInput, nameInput, passInput, buttonsBox, workerBox,
 				statusLabel);
 		Scene authScene = new Scene(authLayout, 400, 450);
 
@@ -128,8 +128,12 @@ public class ClientConnectionScreen extends Application {
 				String res = resMsg.getCommand();
 
 				if ("LOGIN_SUCCESS_EMPLOYEE".equals(res)) {
+					ClientSession.loggedInId = id;
+					
 					String[] dbData = (String[]) resMsg.getData();
 					String role = (dbData.length > 2 && dbData[2] != null) ? dbData[2] : "SERVICE_REP";
+					
+					ClientSession.role = role;
 					primaryStage.close();
 					switch (role) {
 					case "ENTRY_WORKER":
@@ -158,14 +162,10 @@ public class ClientConnectionScreen extends Application {
 
 		loginBtn.setOnAction(e -> {
 			String id = idInput.getText().trim();
-			String pass = passInput.getText().trim();
-			String typedName = nameInput.getText().trim();
-			if (id.isEmpty() || pass.isEmpty() || typedName.isEmpty()) {
-				statusLabel.setText("ID, Password, and Full Name required!");
-				return;
-			}
-			if (!id.matches("\\d{9}")) {
-				statusLabel.setText("ID is invalid! Must be exactly 9 digits.");
+			String username = nameInput.getText().trim();
+
+			if (id.isEmpty() || username.isEmpty()) {
+				statusLabel.setText("ID and username required!");
 				return;
 			}
 
@@ -173,18 +173,12 @@ public class ClientConnectionScreen extends Application {
 
 				ArrayList<String> loginData = new ArrayList<>();
 				loginData.add(id);
-				loginData.add(pass);
+				loginData.add(username);
 				Message resMsg = ClientSession.send(new Message("LOGIN", loginData));
 				String res = resMsg.getCommand();
-
 				if ("LOGIN_SUCCESS_GUIDE".equals(res) || "LOGIN_SUCCESS_REGULAR".equals(res)) {
 					String[] dbData = (String[]) resMsg.getData();
 					String dbFullName = dbData[1];
-					if (dbFullName == null || !dbFullName.equals(typedName)) {
-						statusLabel.setText("Error: Full Name does not match!");
-						return;
-					}
-
 					ClientDashboard.loggedInVisitorId = id;
 					ClientDashboard.loggedInName = dbFullName;
 					ClientDashboard.isAccountGuide = "LOGIN_SUCCESS_GUIDE".equals(res);
@@ -199,8 +193,8 @@ public class ClientConnectionScreen extends Application {
 
 					primaryStage.close();
 					new ClientDashboard().start(new Stage());
-				} else if ("WRONG_PASSWORD".equals(res)) {
-					statusLabel.setText("Error: Wrong Password!");
+				} else if ("WRONG_USERNAME".equals(res)) {
+					statusLabel.setText("Error: Wrong Username!");
 				} else {
 					statusLabel.setText("User not found! Click 'New Visitor'.");
 				}
@@ -211,24 +205,19 @@ public class ClientConnectionScreen extends Application {
 
 		regBtn.setOnAction(e -> {
 			String id = idInput.getText().trim();
-			String pass = passInput.getText().trim();
-			String fullName = nameInput.getText().trim();
-			boolean isGuide = false; // FORCED TO FALSE. Only workers can add guides now!
+			String username = nameInput.getText().trim();
+			boolean isGuide = false;
 
-			if (id.isEmpty() || pass.isEmpty()) {
-				statusLabel.setText("ID and Password required!");
+			if (id.isEmpty() || username.isEmpty()) {
+				statusLabel.setText("ID and username required!");
 				return;
 			}
 			if (!id.matches("\\d{9}")) {
 				statusLabel.setText("ID is invalid!");
 				return;
 			}
-			if (fullName.isEmpty()) {
-				statusLabel.setText("Name cannot be empty!");
-				return;
-			}
-			if (!fullName.matches("^[a-zA-Z\\s]+$")) {
-				statusLabel.setText("Full Name must contain only English letters!");
+			if (!username.matches("^[a-zA-Z0-9_\\s]+$")) {
+				statusLabel.setText("Username can contain letters, numbers, spaces, and underscore.");
 				return;
 			}
 
@@ -236,12 +225,12 @@ public class ClientConnectionScreen extends Application {
 
 				ArrayList<Object> regData = new ArrayList<>();
 				regData.add(id);
-				regData.add(pass);
+				regData.add(username);
 				regData.add(isGuide);
-				regData.add(fullName);
+				regData.add(username);
 				Message regResp = ClientSession.send(new Message("REGISTER", regData));
 				String res = regResp.getCommand();
-
+				
 				if ("REGISTER_SUCCESS".equals(res)) {
 					statusLabel.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;");
 					statusLabel.setText("Registration successful! Now click 'Log In'.");
@@ -253,7 +242,14 @@ public class ClientConnectionScreen extends Application {
 			}
 		});
 
-		primaryStage.setScene(ipScene);
+		if (ClientSession.isConnected()) {
+			primaryStage.setTitle("GoNature - Authentication");
+			primaryStage.setScene(authScene);
+		} else {
+			primaryStage.setTitle("GoNature - Server Connect");
+			primaryStage.setScene(ipScene);
+		}
+
 		primaryStage.show();
 	}
 }

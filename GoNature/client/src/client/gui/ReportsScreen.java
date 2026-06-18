@@ -64,9 +64,16 @@ public class ReportsScreen extends Application {
 
 		Button cancelBtn = new Button("Cancellations Report");
 		cancelBtn.setOnAction(e -> showCancellationsReport());
+		Button logoutBtn = new Button("Logout");
+		logoutBtn.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold;");
+		logoutBtn.setOnAction(e -> LogoutHelper.logout(stage));
+		Button requestsBtn = new Button("Park Change Requests");
+		requestsBtn.setOnAction(e -> showParkChangeRequests());
+		Button discountRequestsBtn = new Button("Discount Requests");
+		discountRequestsBtn.setOnAction(e -> showDiscountRequests());
 
 		HBox controls = new HBox(10, new Label("Park:"), parkCombo, new Label("Month:"), monthCombo, new Label("Year:"),
-				yearCombo, visitsBtn, cancelBtn);
+				yearCombo, visitsBtn, cancelBtn, requestsBtn, discountRequestsBtn, logoutBtn);
 
 		VBox layout = new VBox(15, controls, chartHolder);
 		layout.setPadding(new Insets(20));
@@ -147,6 +154,176 @@ public class ReportsScreen extends Application {
 			Label summary = new Label("Cancelled: " + cancelled + "    No-shows: " + noShow);
 			summary.setStyle("-fx-font-weight: bold;");
 			chartHolder.getChildren().setAll(chart, summary);
+		} catch (Exception ex) {
+			chartHolder.getChildren().setAll(new Label("Connection error."));
+		}
+	}
+	@SuppressWarnings("unchecked")
+	private void showParkChangeRequests() {
+		try {
+			Message resp = request(new Message("GET_PENDING_PARK_CHANGE_REQUESTS", null));
+
+			if (!"PENDING_PARK_CHANGE_REQUESTS".equals(resp.getCommand())) {
+				chartHolder.getChildren().setAll(new Label("Could not load park change requests."));
+				return;
+			}
+
+			ArrayList<ArrayList<Object>> requests = (ArrayList<ArrayList<Object>>) resp.getData();
+
+			VBox box = new VBox(10);
+			box.setPadding(new Insets(10));
+
+			Label title = new Label("Pending Park Change Requests");
+			title.setStyle("-fx-font-weight: bold; -fx-font-size: 16px;");
+			box.getChildren().add(title);
+
+			if (requests == null || requests.isEmpty()) {
+				box.getChildren().add(new Label("No pending requests."));
+				chartHolder.getChildren().setAll(box);
+				return;
+			}
+
+			for (ArrayList<Object> row : requests) {
+				int requestId = (int) row.get(0);
+				String parkName = String.valueOf(row.get(1));
+				int requestedCapacity = (int) row.get(2);
+				int requestedPercent = (int) row.get(3);
+				int requestedDuration = (int) row.get(4);
+				String requestedBy = String.valueOf(row.get(5));
+				String requestTime = String.valueOf(row.get(7));
+
+				Label info = new Label("Request #" + requestId
+						+ " | Park: " + parkName
+						+ " | Capacity: " + requestedCapacity
+						+ " | Bookable: " + requestedPercent + "%"
+						+ " | Duration: " + requestedDuration + "h"
+						+ " | By: " + requestedBy
+						+ " | Time: " + requestTime);
+
+				Button approve = new Button("Approve");
+				Button reject = new Button("Reject");
+
+				approve.setOnAction(e -> {
+					try {
+						ArrayList<Object> data = new ArrayList<>();
+						data.add(requestId);
+						data.add(ClientSession.loggedInId);
+
+						Message r = request(new Message("APPROVE_PARK_CHANGE_REQUEST", data));
+						new Alert(Alert.AlertType.INFORMATION, String.valueOf(r.getData())).showAndWait();
+						showParkChangeRequests();
+
+					} catch (Exception ex) {
+						new Alert(Alert.AlertType.ERROR, "Connection error.").showAndWait();
+					}
+				});
+
+				reject.setOnAction(e -> {
+					try {
+						ArrayList<Object> data = new ArrayList<>();
+						data.add(requestId);
+						data.add(ClientSession.loggedInId);
+
+						Message r = request(new Message("REJECT_PARK_CHANGE_REQUEST", data));
+						new Alert(Alert.AlertType.INFORMATION, String.valueOf(r.getData())).showAndWait();
+						showParkChangeRequests();
+
+					} catch (Exception ex) {
+						new Alert(Alert.AlertType.ERROR, "Connection error.").showAndWait();
+					}
+				});
+
+				HBox rowBox = new HBox(10, info, approve, reject);
+				rowBox.setStyle("-fx-border-color: #cccccc; -fx-padding: 8;");
+				box.getChildren().add(rowBox);
+			}
+
+			chartHolder.getChildren().setAll(box);
+
+		} catch (Exception ex) {
+			chartHolder.getChildren().setAll(new Label("Connection error."));
+		}
+	}
+	@SuppressWarnings("unchecked")
+	private void showDiscountRequests() {
+		try {
+			Message resp = request(new Message("GET_PENDING_DISCOUNT_REQUESTS", null));
+
+			if (!"PENDING_DISCOUNT_REQUESTS".equals(resp.getCommand())) {
+				chartHolder.getChildren().setAll(new Label("Could not load discount requests."));
+				return;
+			}
+
+			ArrayList<ArrayList<Object>> requests = (ArrayList<ArrayList<Object>>) resp.getData();
+
+			VBox box = new VBox(10);
+			box.setPadding(new Insets(10));
+
+			Label title = new Label("Pending Discount Requests");
+			title.setStyle("-fx-font-weight: bold; -fx-font-size: 16px;");
+			box.getChildren().add(title);
+
+			if (requests == null || requests.isEmpty()) {
+				box.getChildren().add(new Label("No pending discount requests."));
+				chartHolder.getChildren().setAll(box);
+				return;
+			}
+
+			for (ArrayList<Object> row : requests) {
+				int requestId = (int) row.get(0);
+				String parkName = String.valueOf(row.get(1));
+				String discountName = String.valueOf(row.get(2));
+				int discountPercent = (int) row.get(3);
+				String requestedBy = String.valueOf(row.get(4));
+				String requestTime = String.valueOf(row.get(5));
+
+				Label info = new Label("Request #" + requestId
+						+ " | Park: " + parkName
+						+ " | Discount: " + discountName
+						+ " | Percent: " + discountPercent + "%"
+						+ " | By: " + requestedBy
+						+ " | Time: " + requestTime);
+
+				Button approve = new Button("Approve");
+				Button reject = new Button("Reject");
+
+				approve.setOnAction(e -> {
+					try {
+						ArrayList<Object> data = new ArrayList<>();
+						data.add(requestId);
+						data.add(ClientSession.loggedInId);
+
+						Message r = request(new Message("APPROVE_DISCOUNT_REQUEST", data));
+						new Alert(Alert.AlertType.INFORMATION, String.valueOf(r.getData())).showAndWait();
+						showDiscountRequests();
+
+					} catch (Exception ex) {
+						new Alert(Alert.AlertType.ERROR, "Connection error.").showAndWait();
+					}
+				});
+
+				reject.setOnAction(e -> {
+					try {
+						ArrayList<Object> data = new ArrayList<>();
+						data.add(requestId);
+						data.add(ClientSession.loggedInId);
+
+						Message r = request(new Message("REJECT_DISCOUNT_REQUEST", data));
+						new Alert(Alert.AlertType.INFORMATION, String.valueOf(r.getData())).showAndWait();
+						showDiscountRequests();
+
+					} catch (Exception ex) {
+						new Alert(Alert.AlertType.ERROR, "Connection error.").showAndWait();
+					}
+				});
+
+				HBox rowBox = new HBox(10, info, approve, reject);
+				rowBox.setStyle("-fx-border-color: #cccccc; -fx-padding: 8;");
+				box.getChildren().add(rowBox);
+			}
+
+			chartHolder.getChildren().setAll(box);
+
 		} catch (Exception ex) {
 			chartHolder.getChildren().setAll(new Label("Connection error."));
 		}

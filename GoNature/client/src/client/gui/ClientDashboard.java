@@ -34,11 +34,12 @@ public class ClientDashboard extends Application {
 	private DatePicker datePicker = new DatePicker(LocalDate.now());
 	private TextField timeInput = new TextField("10:00");
 	private TextField visitorsInput = new TextField("1");
+	private TextField emailInput = new TextField();
 	private int selectedBookingId = -1;
 
 	private Label liveCapacityLabel = new Label(
 			"Select park, date, and time, then click 'Select' to check availability.");
-	private CheckBox chkIsGuide = new CheckBox("Order as Guide");
+	private CheckBox chkIsGuide = new CheckBox("This visit is for a group with a guide");
 
 	@SuppressWarnings("unchecked")
 	@Override
@@ -50,7 +51,7 @@ public class ClientDashboard extends Application {
 
 		if (isAccountGuide) {
 			chkIsGuide.setVisible(true);
-			chkIsGuide.setSelected(true);
+			chkIsGuide.setSelected(false);
 			chkIsGuide.setStyle("-fx-font-weight: bold; -fx-text-fill: #2ecc71; -fx-font-size: 14px;");
 		} else {
 			chkIsGuide.setVisible(false);
@@ -60,11 +61,16 @@ public class ClientDashboard extends Application {
 		Label visitorsLabel = new Label("Visitors (1-15):");
 		visitorsInput.setEditable(true);
 		visitorsInput.setStyle("-fx-border-color: #2ecc71; -fx-background-radius: 5px; -fx-border-radius: 5px;");
-
+		
+		emailInput.setPromptText("example@email.com");
+		emailInput.setStyle("-fx-border-color: #2ecc71; -fx-background-radius: 5px; -fx-border-radius: 5px;");
+		
 		Button btnShowPrices = new Button("View Pricing List");
 		btnShowPrices.setStyle(
 				"-fx-background-color: #34495e; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
-
+		Button btnNotifications = new Button("Notifications");
+		btnNotifications.setStyle(
+				"-fx-background-color: #8e44ad; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
 		Button btnLogout = new Button("Logout");
 		btnLogout.setStyle(
 				"-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
@@ -73,7 +79,7 @@ public class ClientDashboard extends Application {
 			welcomeLabel.setText("Welcome, " + loggedInName + " (Sub #" + subscriptionNumber + ")");
 		}
 
-		HBox rightAlign = new HBox(10, btnShowPrices, btnLogout);
+		HBox rightAlign = new HBox(10, btnShowPrices, btnNotifications, btnLogout);
 		rightAlign.setAlignment(Pos.CENTER_RIGHT);
 		HBox.setHgrow(rightAlign, Priority.ALWAYS);
 		HBox topBar = new HBox(20, welcomeLabel, chkIsGuide, rightAlign);
@@ -99,8 +105,10 @@ public class ClientDashboard extends Application {
 		priceCol.setCellValueFactory(new PropertyValueFactory<>("price"));
 		TableColumn<Booking, String> typeCol = new TableColumn<>("Booking Type");
 		typeCol.setCellValueFactory(new PropertyValueFactory<>("visitorType"));
-
-		table.getColumns().addAll(idCol, parkCol, dateCol, timeCol, visCol, statusCol, priceCol, typeCol);
+		TableColumn<Booking, String> emailCol = new TableColumn<>("Email");
+		emailCol.setCellValueFactory(new PropertyValueFactory<>("email"));
+		
+		table.getColumns().addAll(idCol, parkCol, dateCol, timeCol, visCol, statusCol, priceCol, typeCol, emailCol);
 		table.setItems(dataList);
 		table.setStyle("-fx-selection-bar: #a9dfbf; -fx-background-color: white; -fx-border-color: #27ae60;");
 
@@ -140,6 +148,8 @@ public class ClientDashboard extends Application {
 		inputGrid.add(timeInput, 1, 1);
 		inputGrid.add(visitorsLabel, 2, 1);
 		inputGrid.add(visitorsInput, 3, 1);
+		inputGrid.add(new Label("Email:"), 0, 2);
+		inputGrid.add(emailInput, 1, 2, 3, 1);
 
 		Button btnSelect = new Button("Select");
 		btnSelect.setStyle(
@@ -168,22 +178,14 @@ public class ClientDashboard extends Application {
 					+ "5. Subscribers: Receive an additional 10% compound discount on top of any other discounts!");
 			pricesAlert.showAndWait();
 		});
+		btnNotifications.setOnAction(e -> showRecentNotifications(true));
 
 		btnSelect.setOnAction(e -> {
 			checkLiveCapacity();
 			responseLabel.setText("Availability status refreshed.");
 		});
 
-		btnLogout.setOnAction(e -> {
-			loggedInVisitorId = "";
-			loggedInName = "";
-			primaryStage.close();
-			try {
-				new ClientConnectionScreen().start(new Stage());
-			} catch (Exception ex) {
-				ex.printStackTrace();
-			}
-		});
+		btnLogout.setOnAction(e -> LogoutHelper.logout(primaryStage));
 
 		table.getSelectionModel().selectedItemProperty().addListener((obs, old, newSelection) -> {
 			if (newSelection != null) {
@@ -192,6 +194,8 @@ public class ClientDashboard extends Application {
 				datePicker.setValue(newSelection.getVisitDate());
 				timeInput.setText(newSelection.getVisitTime().toString());
 				visitorsInput.setText(String.valueOf(newSelection.getVisitorsCount()));
+				emailInput.setText(newSelection.getEmail() == null ? "" : newSelection.getEmail());
+				chkIsGuide.setSelected(newSelection.isGuideGroup());
 				if (isAccountGuide)
 					chkIsGuide.setSelected("Guide".equals(newSelection.getVisitorType()));
 				checkLiveCapacity();
@@ -230,12 +234,24 @@ public class ClientDashboard extends Application {
 				return;
 			}
 
+			String email = emailInput.getText().trim();
+			if (email.isEmpty() || !email.contains("@")) {
+				new Alert(Alert.AlertType.ERROR, "Enter a valid email address.").showAndWait();
+				return;
+			}
+
+			boolean guideGroup = isAccountGuide && chkIsGuide.isSelected();
+
 			Booking b = new Booking(0, loggedInVisitorId, parkCombo.getValue(), datePicker.getValue(), parsedTime,
 					visitors, "Pending");
-			b.setVisitorType(isAccountGuide && chkIsGuide.isSelected() ? "Guide" : "Regular Visitor");
+
+			b.setEmail(email);
+			b.setVisitorType(guideGroup ? "Guide" : "Regular Visitor");
+			b.setGuideGroup(guideGroup);
+			b.setSubscriber(isSubscriberAccount);
+
 			int calculatedPrice = calculatePrice(visitors, b.getVisitorType(), isSubscriberAccount, true, true);
 			b.setPrice(calculatedPrice);
-
 			try {
 
 				Message response = ClientSession.send(new Message("CHECK_AVAILABILITY", b));
@@ -273,11 +289,20 @@ public class ClientDashboard extends Application {
 						if (payAlert.getResult() == ButtonType.YES) {
 							Booking confirmedB = new Booking(0, b.getVisitorId(), b.getParkName(), b.getVisitDate(),
 									b.getVisitTime(), availableSpots, "Pending");
+
 							confirmedB.setVisitorType(b.getVisitorType());
+							confirmedB.setEmail(b.getEmail());
+							confirmedB.setGuideGroup(b.isGuideGroup());
+							confirmedB.setSubscriber(b.isSubscriber());
 							confirmedB.setPrice(splitPrice);
+
 							Booking waitlistB = new Booking(0, b.getVisitorId(), b.getParkName(), b.getVisitDate(),
 									b.getVisitTime(), waitlistSpots, "Waiting List");
+
 							waitlistB.setVisitorType(b.getVisitorType());
+							waitlistB.setEmail(b.getEmail());
+							waitlistB.setGuideGroup(b.isGuideGroup());
+							waitlistB.setSubscriber(b.isSubscriber());
 							waitlistB.setPrice(0);
 							ArrayList<Booking> splitData = new ArrayList<>();
 							splitData.add(confirmedB);
@@ -343,8 +368,14 @@ public class ClientDashboard extends Application {
 			}
 			if (visitors < 1 || visitors > 15)
 				return;
+			String email = emailInput.getText().trim();
+			if (email.isEmpty() || !email.contains("@")) {
+				new Alert(Alert.AlertType.ERROR, "Enter a valid email address.").showAndWait();
+				return;
+			}
+			boolean guideGroup = isAccountGuide && chkIsGuide.isSelected();
 
-			String newType = isAccountGuide && chkIsGuide.isSelected() ? "Guide" : "Regular Visitor";
+			String newType = guideGroup ? "Guide" : "Regular Visitor";
 			int newPrice = calculatePrice(visitors, newType, isSubscriberAccount, true, true);
 			int oldPrice = selectedBooking.getPrice();
 			int diff = newPrice - oldPrice;
@@ -367,7 +398,11 @@ public class ClientDashboard extends Application {
 
 			Booking b = new Booking(selectedBookingId, loggedInVisitorId, parkCombo.getValue(), datePicker.getValue(),
 					parsedTime, visitors, "Pending");
+
+			b.setEmail(email);
 			b.setVisitorType(newType);
+			b.setGuideGroup(guideGroup);
+			b.setSubscriber(isSubscriberAccount);
 			b.setPrice(newPrice);
 			sendCommandToServer("UPDATE_DATA", b);
 			loadDataFromServer();
@@ -399,6 +434,7 @@ public class ClientDashboard extends Application {
 		checkLiveCapacity();
 		checkTomorrowBookings();
 		checkWaitingListInbox();
+		showRecentNotifications(false);
 	}
 
 	public static int calculatePrice(int totalVisitors, String visitorType, boolean hasSubscription,
@@ -566,13 +602,82 @@ public class ClientDashboard extends Application {
 					&& command.matches("ADD_DATA|CANCEL_DATA|PAY_WAITING_LIST|ADD_SPLIT_BOOKING")) {
 				new Alert(Alert.AlertType.INFORMATION, response.getData().toString(), ButtonType.OK).showAndWait();
 				if ("SUCCESS_PAID".equals(response.getCommand())) {
-					NotificationSimulator.send(loggedInVisitorId + "@gonature.com", null, "Booking Confirmation",
+					String toEmail = loggedInVisitorId + "@gonature.com";
+
+					if (data instanceof Booking) {
+						Booking booking = (Booking) data;
+						if (booking.getEmail() != null && !booking.getEmail().trim().isEmpty()) {
+							toEmail = booking.getEmail().trim();
+						}
+					} else if (data instanceof ArrayList<?>) {
+						ArrayList<?> list = (ArrayList<?>) data;
+						if (!list.isEmpty() && list.get(0) instanceof Booking) {
+							Booking booking = (Booking) list.get(0);
+							if (booking.getEmail() != null && !booking.getEmail().trim().isEmpty()) {
+								toEmail = booking.getEmail().trim();
+							}
+						}
+					}
+
+					NotificationSimulator.send(toEmail, null, "Booking Confirmation",
 							response.getData().toString());
 				}
 			}
 			responseLabel.setText("Action: " + response.getCommand());
 		} catch (Exception ex) {
 			responseLabel.setText("Connection Error.");
+		}
+	}
+	@SuppressWarnings("unchecked")
+	private void showRecentNotifications(boolean showWhenEmpty) {
+		try {
+			Message response = ClientSession.send(new Message("GET_VISITOR_NOTIFICATIONS", loggedInVisitorId));
+
+			if (!"VISITOR_NOTIFICATIONS".equals(response.getCommand())) {
+				new Alert(Alert.AlertType.ERROR, "Could not load notifications.").showAndWait();
+				return;
+			}
+
+			ArrayList<ArrayList<Object>> notifications = (ArrayList<ArrayList<Object>>) response.getData();
+
+			if (notifications == null || notifications.isEmpty()) {
+				if (showWhenEmpty) {
+					new Alert(Alert.AlertType.INFORMATION, "No notifications found.").showAndWait();
+				}
+				return;
+			}
+
+			StringBuilder sb = new StringBuilder();
+
+			for (ArrayList<Object> row : notifications) {
+				String type = String.valueOf(row.get(1));
+				String message = String.valueOf(row.get(2));
+				String email = String.valueOf(row.get(3));
+				String phone = String.valueOf(row.get(4));
+				String sentAt = String.valueOf(row.get(5));
+
+				sb.append("Type: ").append(type).append("\n");
+				sb.append("Sent At: ").append(sentAt).append("\n");
+				sb.append("Email: ").append(email).append("\n");
+				sb.append("SMS Phone: ").append(phone).append("\n");
+				sb.append(message).append("\n");
+				sb.append("-----------------------------\n");
+			}
+
+			TextArea area = new TextArea(sb.toString());
+			area.setEditable(false);
+			area.setWrapText(true);
+			area.setPrefWidth(600);
+			area.setPrefHeight(400);
+
+			Alert alert = new Alert(Alert.AlertType.INFORMATION);
+			alert.setTitle("My Notifications");
+			alert.setHeaderText("Recent GoNature Notifications");
+			alert.getDialogPane().setContent(area);
+			alert.showAndWait();
+
+		} catch (Exception ex) {
+			new Alert(Alert.AlertType.ERROR, "Connection error while loading notifications.").showAndWait();
 		}
 	}
 }

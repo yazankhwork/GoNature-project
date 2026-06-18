@@ -56,6 +56,8 @@ public class Booking implements Serializable {
 	/**
 	 * Current booking status.
 	 */
+	private String email;
+	
 	private String status;
 
 	/**
@@ -67,7 +69,8 @@ public class Booking implements Serializable {
 	 * Type of visitor associated with the booking.
 	 */
 	private String visitorType;
-
+	private boolean guideGroup;
+	private boolean subscriber;
 	/**
 	 * Creates a booking with a specified status.
 	 *
@@ -273,5 +276,27 @@ public class Booking implements Serializable {
 	 */
 	public void setVisitorType(String visitorType) {
 		this.visitorType = visitorType;
+	}
+	public String getEmail() {
+		return email;
+	}
+
+	public void setEmail(String email) {
+		this.email = email;
+	}
+	public boolean isGuideGroup() {
+		return guideGroup;
+	}
+
+	public void setGuideGroup(boolean guideGroup) {
+		this.guideGroup = guideGroup;
+	}
+
+	public boolean isSubscriber() {
+		return subscriber;
+	}
+
+	public void setSubscriber(boolean subscriber) {
+		this.subscriber = subscriber;
 	}
 }

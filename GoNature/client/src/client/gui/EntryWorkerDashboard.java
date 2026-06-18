@@ -48,14 +48,7 @@ public class EntryWorkerDashboard extends Application {
 
 		Button logout = new Button("Logout");
 		logout.setStyle("-fx-background-color: #ff4d4d; -fx-text-fill: white; -fx-font-weight: bold;");
-		logout.setOnAction(e -> {
-			stage.close();
-			try {
-				new ClientConnectionScreen().start(new Stage());
-			} catch (Exception ex) {
-				ex.printStackTrace();
-			}
-		});
+		logout.setOnAction(e -> LogoutHelper.logout(stage));
 		HBox top = new HBox(20, title, subtitle, logout);
 		HBox.setHgrow(subtitle, Priority.ALWAYS);
 
@@ -77,16 +70,19 @@ public class EntryWorkerDashboard extends Application {
 
 		// --- Check-in / Check-out by booking ID ---
 		TextField bookingId = new TextField();
-		bookingId.setPromptText("Booking ID");
+		bookingId.setPromptText("Confirmation Code");
 		Button checkIn = new Button("Check In");
 		Button checkOut = new Button("Check Out");
 
 		checkIn.setOnAction(e -> {
-			Integer id = parseId(bookingId.getText());
-			if (id == null)
+			String code = bookingId.getText().trim();
+			if (code.isEmpty()) {
+				new Alert(Alert.AlertType.ERROR, "Enter confirmation code.").showAndWait();
 				return;
+			}
+
 			try {
-				Message r = request(new Message("CHECKIN", id));
+				Message r = request(new Message("CHECKIN", code));
 				if ("CHECKIN_OK".equals(r.getCommand())) {
 					result.setText(String.valueOf(r.getData()));
 				} else {
@@ -98,21 +94,25 @@ public class EntryWorkerDashboard extends Application {
 		});
 
 		checkOut.setOnAction(e -> {
-			Integer id = parseId(bookingId.getText());
-			if (id == null)
+			String code = bookingId.getText().trim();
+			if (code.isEmpty()) {
+				new Alert(Alert.AlertType.ERROR, "Enter confirmation code.").showAndWait();
 				return;
+			}
+
 			try {
-				Message r = request(new Message("CHECKOUT", id));
+				Message r = request(new Message("CHECKOUT", code));
 				result.setText("CHECKOUT_OK".equals(r.getCommand()) ? "Check-out registered." : "Check-out failed.");
 			} catch (Exception ex) {
 				result.setText("Server connection error.");
 			}
 		});
 
-		HBox entryRow = new HBox(10, new Label("Booking ID:"), bookingId, checkIn, checkOut);
+		HBox entryRow = new HBox(10, new Label("Confirmation Code:"), bookingId, checkIn, checkOut);
 
 		// --- Casual walk-in ---
 		TextField casualCount = new TextField("1");
+		CheckBox casualGuideGroup = new CheckBox("Casual group with guide");
 		Button casual = new Button("Admit Walk-in");
 		casual.setOnAction(e -> {
 			int n;
@@ -122,9 +122,24 @@ public class EntryWorkerDashboard extends Application {
 				new Alert(Alert.AlertType.ERROR, "Visitors must be a number.").showAndWait();
 				return;
 			}
+			if (n < 1) {
+				new Alert(Alert.AlertType.ERROR, "Visitors must be at least 1.").showAndWait();
+				return;
+			}
+
+			if (casualGuideGroup.isSelected() && (n < 2 || n > 15)) {
+				new Alert(Alert.AlertType.ERROR,
+						"Casual group with guide must include 2 to 15 people including the guide.").showAndWait();
+				return;
+			}
+			boolean guideGroup = casualGuideGroup.isSelected();
+
 			Booking b = new Booking(0, "CASUAL", parkCombo.getValue(), LocalDate.now(),
 					LocalTime.now().withSecond(0).withNano(0), n, "Entered");
-			b.setVisitorType("Regular Visitor");
+
+			b.setVisitorType(guideGroup ? "Guide" : "Regular Visitor");
+			b.setGuideGroup(guideGroup);
+			b.setSubscriber(false);
 			try {
 				Message r = request(new Message("CASUAL_VISIT", b));
 				if ("CASUAL_OK".equals(r.getCommand())) {
@@ -136,7 +151,7 @@ public class EntryWorkerDashboard extends Application {
 				result.setText("Server connection error.");
 			}
 		});
-		HBox casualRow = new HBox(10, new Label("Walk-in visitors:"), casualCount, casual);
+		HBox casualRow = new HBox(10, new Label("Walk-in visitors:"), casualCount, casualGuideGroup, casual);
 
 		result.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50;");
 		result.setWrapText(true);
@@ -150,14 +165,5 @@ public class EntryWorkerDashboard extends Application {
 		layout.setPadding(new Insets(20));
 		stage.setScene(new Scene(layout, 640, 380));
 		stage.show();
-	}
-
-	private Integer parseId(String s) {
-		try {
-			return Integer.parseInt(s.trim());
-		} catch (Exception ex) {
-			new Alert(Alert.AlertType.ERROR, "Enter a valid numeric Booking ID.").showAndWait();
-			return null;
-		}
 	}
 }
