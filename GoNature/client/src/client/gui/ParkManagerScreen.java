@@ -3,6 +3,9 @@ package client.gui;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
@@ -12,6 +15,9 @@ import common.Message;
 import client.network.ClientSession;
 
 import java.util.ArrayList;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Park manager screen. Lets a park manager view and change a park's maximum
@@ -25,11 +31,15 @@ public class ParkManagerScreen extends Application {
 	private final Label currentCapacityLabel = new Label("Current capacity: -");
 	private final Label currentBookingPercentLabel = new Label("Bookable percent: -");
 	private final Label currentDurationLabel = new Label("Visit duration: -");
+	private final Label visitorsInsideLabel = new Label("Visitors currently inside: -");
+	private final Label freeCapacityLabel = new Label("Free places by max capacity: -");
 	private final TextField newCapacityField = new TextField();
 	private final TextField newBookingPercentField = new TextField();
 	private final TextField newDurationField = new TextField();
 	private final TextField discountNameField = new TextField();
 	private final TextField discountPercentField = new TextField();
+	private final ComboBox<Integer> reportMonthCombo = new ComboBox<>();
+	private final ComboBox<Integer> reportYearCombo = new ComboBox<>();
 	private final Label statusLabel = new Label();
 
 	private static Message request(Message m) throws Exception {
@@ -44,6 +54,16 @@ public class ParkManagerScreen extends Application {
 				"Hula Valley");
 		parkCombo.setValue("Carmel Park");
 		parkCombo.setOnAction(e -> loadCapacity());
+		for (int m = 1; m <= 12; m++) {
+			reportMonthCombo.getItems().add(m);
+		}
+		reportMonthCombo.setValue(LocalDate.now().getMonthValue());
+
+		int thisYear = LocalDate.now().getYear();
+		for (int y = thisYear - 2; y <= thisYear; y++) {
+			reportYearCombo.getItems().add(y);
+		}
+		reportYearCombo.setValue(thisYear);
 
 		newCapacityField.setPromptText("New max capacity");
 		newBookingPercentField.setPromptText("New booking percent, e.g. 80");
@@ -161,6 +181,10 @@ public class ParkManagerScreen extends Application {
 				statusLabel.setText("Connection error.");
 			}
 		});
+		Button monthlyVisitorsReportBtn = new Button("Monthly Visitors Report");
+		monthlyVisitorsReportBtn.setOnAction(e -> showMonthlyVisitorsReport());
+		Button notFullReportBtn = new Button("Park Not-Full Report");
+		notFullReportBtn.setOnAction(e -> showParkNotFullReport());
 		Button logoutBtn = new Button("Logout");
 		logoutBtn.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold;");
 		logoutBtn.setOnAction(e -> LogoutHelper.logout(stage));
@@ -172,20 +196,29 @@ public class ParkManagerScreen extends Application {
 		grid.addRow(1, currentCapacityLabel);
 		grid.addRow(2, currentBookingPercentLabel);
 		grid.addRow(3, currentDurationLabel);
+		grid.addRow(4, visitorsInsideLabel);
+		grid.addRow(5, freeCapacityLabel);
 
-		grid.addRow(4, new Label("New capacity:"), newCapacityField);
-		grid.addRow(5, new Label("New booking percent:"), newBookingPercentField);
-		grid.addRow(6, new Label("New duration hours:"), newDurationField, updateBtn);
+		grid.addRow(6, new Label("New capacity:"), newCapacityField);
+		grid.addRow(7, new Label("New booking percent:"), newBookingPercentField);
+		grid.addRow(8, new Label("New duration hours:"), newDurationField, updateBtn);
+
+		grid.addRow(9, new Label("Discount name:"), discountNameField);
+		grid.addRow(10, new Label("Discount percent:"), discountPercentField, discountBtn);
+		grid.addRow(11, new Label("Report month/year:"), reportMonthCombo, reportYearCombo, monthlyVisitorsReportBtn);
+		grid.addRow(12, new Label("Capacity report:"), notFullReportBtn);
 		
-		grid.addRow(7, new Label("Discount name:"), discountNameField);
-		grid.addRow(8, new Label("Discount percent:"), discountPercentField, discountBtn);
-
 		VBox layout = new VBox(15, grid, statusLabel, logoutBtn);
 		layout.setPadding(new Insets(20));
-		stage.setScene(new Scene(layout, 650, 430));
+		stage.setScene(new Scene(layout, 780, 620));
 		stage.show();
 
 		loadCapacity();
+		Timeline refreshTimer = new Timeline(new KeyFrame(Duration.seconds(10), e -> loadCapacity()));
+		refreshTimer.setCycleCount(Timeline.INDEFINITE);
+		refreshTimer.play();
+
+		stage.setOnCloseRequest(e -> refreshTimer.stop());
 	}
 
 	private void loadCapacity() {
@@ -206,9 +239,113 @@ public class ParkManagerScreen extends Application {
 				newCapacityField.setText(String.valueOf(capacity));
 				newBookingPercentField.setText(String.valueOf(bookingPercent));
 				newDurationField.setText(String.valueOf(duration));
+
+				Message activeResp = request(new Message("GET_ACTIVE_VISITORS", parkCombo.getValue()));
+				if ("ACTIVE_VISITORS".equals(activeResp.getCommand())) {
+					int activeVisitors = (int) activeResp.getData();
+					visitorsInsideLabel.setText("Visitors currently inside: " + activeVisitors);
+					freeCapacityLabel.setText("Free places by max capacity: " + Math.max(0, capacity - activeVisitors));
+				}
 			}
 		} catch (Exception ex) {
 			currentCapacityLabel.setText("Current capacity: (connection error)");
+			visitorsInsideLabel.setText("Visitors currently inside: (connection error)");
+			freeCapacityLabel.setText("Free places by max capacity: -");
+		}
+	}
+	@SuppressWarnings("unchecked")
+	private void showMonthlyVisitorsReport() {
+		try {
+			ArrayList<Object> data = new ArrayList<>();
+			data.add(parkCombo.getValue());
+			data.add(reportYearCombo.getValue());
+			data.add(reportMonthCombo.getValue());
+
+			Message resp = request(new Message("REPORT_VISITS", data));
+
+			if (!"REPORT_VISITS_RESULT".equals(resp.getCommand())) {
+				new Alert(Alert.AlertType.ERROR, "Could not load monthly visitors report.").showAndWait();
+				return;
+			}
+
+			HashMap<String, Integer> report = (HashMap<String, Integer>) resp.getData();
+
+			int total = 0;
+			StringBuilder sb = new StringBuilder();
+
+			sb.append("Monthly Visitors Report\n");
+			sb.append("Park: ").append(parkCombo.getValue()).append("\n");
+			sb.append("Month: ").append(reportMonthCombo.getValue()).append("/").append(reportYearCombo.getValue()).append("\n\n");
+
+			for (Map.Entry<String, Integer> entry : report.entrySet()) {
+				sb.append(entry.getKey()).append(": ").append(entry.getValue()).append(" visitors\n");
+				total += entry.getValue();
+			}
+
+			sb.append("\nTotal visitors: ").append(total);
+
+			Alert alert = new Alert(Alert.AlertType.INFORMATION);
+			alert.setTitle("Monthly Visitors Report");
+			alert.setHeaderText("Visitors by Type");
+			alert.setContentText(sb.toString());
+			alert.showAndWait();
+
+		} catch (Exception ex) {
+			new Alert(Alert.AlertType.ERROR, "Connection error while loading report.").showAndWait();
+		}
+	}
+	@SuppressWarnings("unchecked")
+	private void showParkNotFullReport() {
+		try {
+			ArrayList<Object> data = new ArrayList<>();
+			data.add(parkCombo.getValue());
+			data.add(reportYearCombo.getValue());
+			data.add(reportMonthCombo.getValue());
+
+			Message resp = request(new Message("REPORT_NOT_FULL", data));
+
+			if (!"REPORT_NOT_FULL_RESULT".equals(resp.getCommand())) {
+				new Alert(Alert.AlertType.ERROR, "Could not load not-full report.").showAndWait();
+				return;
+			}
+
+			ArrayList<ArrayList<Object>> rows = (ArrayList<ArrayList<Object>>) resp.getData();
+
+			StringBuilder sb = new StringBuilder();
+			sb.append("Park Not-Full Report\n");
+			sb.append("Park: ").append(parkCombo.getValue()).append("\n");
+			sb.append("Month: ").append(reportMonthCombo.getValue()).append("/")
+					.append(reportYearCombo.getValue()).append("\n\n");
+
+			if (rows == null || rows.isEmpty()) {
+				sb.append("No not-full periods found.");
+			} else {
+				sb.append("Date | Peak Visitors | Capacity | Free at Peak | Not-Full Hours\n");
+				sb.append("------------------------------------------------------------\n");
+
+				for (ArrayList<Object> row : rows) {
+					sb.append(row.get(0)).append(" | ")
+							.append(row.get(1)).append(" | ")
+							.append(row.get(2)).append(" | ")
+							.append(row.get(3)).append(" | ")
+							.append(row.get(4)).append("\n");
+				}
+			}
+
+			TextArea area = new TextArea(sb.toString());
+			area.setEditable(false);
+			area.setWrapText(false);
+			area.setPrefWidth(700);
+			area.setPrefHeight(450);
+
+			Alert alert = new Alert(Alert.AlertType.INFORMATION);
+			alert.setTitle("Park Not-Full Report");
+			alert.setHeaderText("Times when park was not full");
+			alert.getDialogPane().setContent(area);
+			alert.showAndWait();
+
+		} catch (Exception ex) {
+			new Alert(Alert.AlertType.ERROR, "Connection error while loading not-full report.").showAndWait();
 		}
 	}
 }

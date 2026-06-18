@@ -496,6 +496,12 @@ public class GoNatureServer extends AbstractServer {
 
 				break;
 			}
+			case "GET_APPROVED_DISCOUNT": {
+				int discountPercent = dbController.getApprovedDiscountPercent((String) data);
+
+				response = new Message("APPROVED_DISCOUNT", discountPercent);
+				break;
+			}
 
 			case "APPROVE_PARK_CHANGE_REQUEST": {
 				@SuppressWarnings("unchecked")
@@ -653,6 +659,24 @@ public class GoNatureServer extends AbstractServer {
 
 				response = new Message("REPORT_VISITS_RESULT",
 						dbController.reportVisitorsByType((String) f.get(0), (int) f.get(1), (int) f.get(2)));
+
+				break;
+			}
+			case "REPORT_DETAILED_VISITS": {
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> f = (ArrayList<Object>) data;
+
+				response = new Message("REPORT_DETAILED_VISITS_RESULT",
+						dbController.reportDetailedVisits((String) f.get(0), (int) f.get(1), (int) f.get(2)));
+
+				break;
+			}
+			case "REPORT_NOT_FULL": {
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> f = (ArrayList<Object>) data;
+
+				response = new Message("REPORT_NOT_FULL_RESULT",
+						dbController.reportParkNotFull((String) f.get(0), (int) f.get(1), (int) f.get(2)));
 
 				break;
 			}

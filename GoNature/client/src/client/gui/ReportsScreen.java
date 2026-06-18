@@ -1,6 +1,9 @@
 package client.gui;
 
 import javafx.application.Application;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -35,7 +38,8 @@ public class ReportsScreen extends Application {
 	private final ComboBox<Integer> monthCombo = new ComboBox<>();
 	private final ComboBox<Integer> yearCombo = new ComboBox<>();
 	private final VBox chartHolder = new VBox(10);
-
+	private final CheckBox allParksCancelCheck = new CheckBox("All parks for cancellations");
+	private final Label liveCapacityLabel = new Label("Live capacity: -");
 	private static Message request(Message m) throws Exception {
 		return ClientSession.send(m);
 	}
@@ -47,6 +51,7 @@ public class ReportsScreen extends Application {
 		parkCombo.getItems().addAll("Carmel Park", "Jordan Park", "Banias Park", "Safari Zoo", "Ramon Crater",
 				"Hula Valley");
 		parkCombo.setValue("Carmel Park");
+		parkCombo.setOnAction(e -> updateLiveCapacity());
 
 		for (int mth = 1; mth <= 12; mth++) {
 			monthCombo.getItems().add(mth);
@@ -62,6 +67,9 @@ public class ReportsScreen extends Application {
 		Button visitsBtn = new Button("Visits Report");
 		visitsBtn.setOnAction(e -> showVisitsReport());
 
+		Button detailedVisitsBtn = new Button("Detailed Visits");
+		detailedVisitsBtn.setOnAction(e -> showDetailedVisitsReport());
+
 		Button cancelBtn = new Button("Cancellations Report");
 		cancelBtn.setOnAction(e -> showCancellationsReport());
 		Button logoutBtn = new Button("Logout");
@@ -73,17 +81,71 @@ public class ReportsScreen extends Application {
 		discountRequestsBtn.setOnAction(e -> showDiscountRequests());
 
 		HBox controls = new HBox(10, new Label("Park:"), parkCombo, new Label("Month:"), monthCombo, new Label("Year:"),
-				yearCombo, visitsBtn, cancelBtn, requestsBtn, discountRequestsBtn, logoutBtn);
+				yearCombo, visitsBtn, detailedVisitsBtn, allParksCancelCheck, cancelBtn, requestsBtn, discountRequestsBtn,
+				logoutBtn);
 
-		VBox layout = new VBox(15, controls, chartHolder);
+		HBox liveCapacityRow = new HBox(10, liveCapacityLabel);
+		liveCapacityRow.setStyle("-fx-padding: 8; -fx-border-color: #cccccc;");
+
+		VBox layout = new VBox(15, controls, liveCapacityRow, chartHolder);
 		layout.setPadding(new Insets(20));
-		stage.setScene(new Scene(layout, 720, 520));
+		stage.setScene(new Scene(layout, 980, 580));
 		stage.show();
+		
+		updateLiveCapacity();
+
+		Timeline refreshTimer = new Timeline(new KeyFrame(Duration.seconds(10), e -> updateLiveCapacity()));
+		refreshTimer.setCycleCount(Timeline.INDEFINITE);
+		refreshTimer.play();
+
+		stage.setOnCloseRequest(e -> refreshTimer.stop());
+	}
+	@SuppressWarnings("unchecked")
+	private void updateLiveCapacity() {
+		try {
+			String parkName = parkCombo.getValue();
+
+			Message paramsResp = request(new Message("GET_PARK_PARAMS", parkName));
+			Message activeResp = request(new Message("GET_ACTIVE_VISITORS", parkName));
+
+			if ("PARK_PARAMS".equals(paramsResp.getCommand()) && "ACTIVE_VISITORS".equals(activeResp.getCommand())) {
+				ArrayList<Object> params = (ArrayList<Object>) paramsResp.getData();
+
+				int maxCapacity = (int) params.get(0);
+				int activeVisitors = (int) activeResp.getData();
+				int freePlaces = Math.max(0, maxCapacity - activeVisitors);
+
+				liveCapacityLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+				liveCapacityLabel.setText("Live capacity for " + parkName
+						+ ": " + activeVisitors + "/" + maxCapacity
+						+ " visitors inside | Free places: " + freePlaces);
+			} else {
+				liveCapacityLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: red;");
+				liveCapacityLabel.setText("Live capacity: could not load data.");
+			}
+
+		} catch (Exception ex) {
+			liveCapacityLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: red;");
+			liveCapacityLabel.setText("Live capacity: connection error.");
+		}
 	}
 
 	private ArrayList<Object> filter() {
 		ArrayList<Object> data = new ArrayList<>();
 		data.add(parkCombo.getValue());
+		data.add(yearCombo.getValue());
+		data.add(monthCombo.getValue());
+		return data;
+	}
+	private ArrayList<Object> cancellationFilter() {
+		ArrayList<Object> data = new ArrayList<>();
+
+		if (allParksCancelCheck.isSelected()) {
+			data.add("ALL");
+		} else {
+			data.add(parkCombo.getValue());
+		}
+
 		data.add(yearCombo.getValue());
 		data.add(monthCombo.getValue());
 		return data;
@@ -124,37 +186,114 @@ public class ReportsScreen extends Application {
 			chartHolder.getChildren().setAll(new Label("Connection error."));
 		}
 	}
+	@SuppressWarnings("unchecked")
+	private void showDetailedVisitsReport() {
+		try {
+			Message resp = request(new Message("REPORT_DETAILED_VISITS", filter()));
+
+			if (!"REPORT_DETAILED_VISITS_RESULT".equals(resp.getCommand())) {
+				chartHolder.getChildren().setAll(new Label("Could not load detailed visits report."));
+				return;
+			}
+
+			ArrayList<ArrayList<Object>> rows = (ArrayList<ArrayList<Object>>) resp.getData();
+
+			StringBuilder sb = new StringBuilder();
+			sb.append("Detailed Visits Report\n");
+			sb.append("Park: ").append(parkCombo.getValue()).append("\n");
+			sb.append("Month: ").append(monthCombo.getValue()).append("/")
+					.append(yearCombo.getValue()).append("\n\n");
+
+			if (rows == null || rows.isEmpty()) {
+				sb.append("No visits found.");
+			} else {
+				sb.append("Booking ID | Visitor ID | Date | Time | Count | Type | Check-in | Checkout | Status\n");
+				sb.append("--------------------------------------------------------------------------------------\n");
+
+				for (ArrayList<Object> row : rows) {
+					sb.append(row.get(0)).append(" | ")
+							.append(row.get(1)).append(" | ")
+							.append(row.get(2)).append(" | ")
+							.append(row.get(3)).append(" | ")
+							.append(row.get(4)).append(" | ")
+							.append(row.get(5)).append(" | ")
+							.append(row.get(6)).append(" | ")
+							.append(row.get(7)).append(" | ")
+							.append(row.get(8)).append("\n");
+				}
+			}
+
+			TextArea area = new TextArea(sb.toString());
+			area.setEditable(false);
+			area.setWrapText(false);
+			area.setPrefWidth(850);
+			area.setPrefHeight(450);
+
+			chartHolder.getChildren().setAll(area);
+
+		} catch (Exception ex) {
+			chartHolder.getChildren().setAll(new Label("Connection error."));
+		}
+	}
 
 	@SuppressWarnings("unchecked")
 	private void showCancellationsReport() {
 		try {
-			Message resp = request(new Message("REPORT_CANCELLATIONS", filter()));
+			Message resp = request(new Message("REPORT_CANCELLATIONS", cancellationFilter()));
 			if (!"REPORT_CANCELLATIONS_RESULT".equals(resp.getCommand())) {
+				chartHolder.getChildren().setAll(new Label("Could not load cancellations report."));
 				return;
 			}
-			ArrayList<Integer> nums = (ArrayList<Integer>) resp.getData();
-			int cancelled = nums.size() > 0 ? nums.get(0) : 0;
-			int noShow = nums.size() > 1 ? nums.get(1) : 0;
+
+			ArrayList<Object> result = (ArrayList<Object>) resp.getData();
+
+			ArrayList<ArrayList<Object>> dailyRows = (ArrayList<ArrayList<Object>>) result.get(0);
+			int totalCancelled = (int) result.get(1);
+			int totalNoShow = (int) result.get(2);
+			double averageCancelledPerDay = (double) result.get(3);
 
 			CategoryAxis x = new CategoryAxis();
 			NumberAxis y = new NumberAxis();
-			x.setLabel("Outcome");
-			y.setLabel("Count");
+			x.setLabel("Day");
+			y.setLabel("Bookings");
 
 			BarChart<String, Number> chart = new BarChart<>(x, y);
-			chart.setTitle("Cancellations - " + parkCombo.getValue() + " " + monthCombo.getValue() + "/"
-					+ yearCombo.getValue());
 
-			XYChart.Series<String, Number> series = new XYChart.Series<>();
-			series.setName("Bookings");
-			series.getData().add(new XYChart.Data<>("Cancelled", cancelled));
-			series.getData().add(new XYChart.Data<>("No-show (not cancelled)", noShow));
-			chart.getData().add(series);
+			String parkTitle = allParksCancelCheck.isSelected() ? "All Parks" : parkCombo.getValue();
+			chart.setTitle("Daily Cancelled / No-show - " + parkTitle + " "
+					+ monthCombo.getValue() + "/" + yearCombo.getValue());
 
-			Label summary = new Label("Cancelled: " + cancelled + "    No-shows: " + noShow);
+			XYChart.Series<String, Number> cancelledSeries = new XYChart.Series<>();
+			cancelledSeries.setName("Cancelled");
+
+			XYChart.Series<String, Number> noShowSeries = new XYChart.Series<>();
+			noShowSeries.setName("No-show");
+
+			if (dailyRows == null || dailyRows.isEmpty()) {
+				cancelledSeries.getData().add(new XYChart.Data<>("No data", 0));
+				noShowSeries.getData().add(new XYChart.Data<>("No data", 0));
+			} else {
+				for (ArrayList<Object> row : dailyRows) {
+					String day = String.valueOf(row.get(0));
+					int cancelled = (int) row.get(1);
+					int noShow = (int) row.get(2);
+
+					cancelledSeries.getData().add(new XYChart.Data<>(day, cancelled));
+					noShowSeries.getData().add(new XYChart.Data<>(day, noShow));
+				}
+			}
+
+			chart.getData().setAll(cancelledSeries, noShowSeries);
+
+			Label summary = new Label("Total cancelled: " + totalCancelled
+					+ "    Total no-show: " + totalNoShow
+					+ "    Average cancelled per day: " + String.format("%.2f", averageCancelledPerDay));
 			summary.setStyle("-fx-font-weight: bold;");
+
 			chartHolder.getChildren().setAll(chart, summary);
+
 		} catch (Exception ex) {
+			ex.printStackTrace();
 			chartHolder.getChildren().setAll(new Label("Connection error."));
 		}
 	}

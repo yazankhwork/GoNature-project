@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import common.Booking;
 
 public class DatabaseController {
@@ -534,26 +535,89 @@ public class DatabaseController {
 	}
 	public void processBookingConfirmations() {
 		try {
-			String sendReminders = "UPDATE bookings "
-					+ "SET reminder_sent_at = CURRENT_TIMESTAMP, "
-					+ "confirmation_deadline = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 2 HOUR) "
+			String remindersQuery = "SELECT booking_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email "
+					+ "FROM bookings "
 					+ "WHERE status = 'Pending' "
 					+ "AND visit_date = DATE_ADD(CURDATE(), INTERVAL 1 DAY) "
 					+ "AND reminder_sent_at IS NULL";
 
-			try (PreparedStatement ps = connection.prepareStatement(sendReminders)) {
-				ps.executeUpdate();
+			try (PreparedStatement selectPs = connection.prepareStatement(remindersQuery);
+					ResultSet rs = selectPs.executeQuery()) {
+
+				while (rs.next()) {
+					int bookingId = rs.getInt("booking_id");
+					String visitorId = rs.getString("visitor_id");
+					String parkName = rs.getString("park_name");
+					String visitDate = String.valueOf(rs.getDate("visit_date"));
+					String visitTime = String.valueOf(rs.getTime("visit_time"));
+					int visitorsCount = rs.getInt("visitors_count");
+					String email = rs.getString("email");
+
+					String updateReminder = "UPDATE bookings "
+							+ "SET reminder_sent_at = CURRENT_TIMESTAMP, "
+							+ "confirmation_deadline = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 2 HOUR) "
+							+ "WHERE booking_id = ? "
+							+ "AND status = 'Pending' "
+							+ "AND reminder_sent_at IS NULL";
+
+					try (PreparedStatement updatePs = connection.prepareStatement(updateReminder)) {
+						updatePs.setInt(1, bookingId);
+
+						if (updatePs.executeUpdate() > 0) {
+							String message = "Reminder: your visit is tomorrow.\n"
+									+ "Park: " + parkName + "\n"
+									+ "Date: " + visitDate + "\n"
+									+ "Time: " + visitTime + "\n"
+									+ "Visitors: " + visitorsCount + "\n"
+									+ "Please confirm or cancel within 2 hours.";
+
+							createNotification(visitorId, bookingId, "VISIT_REMINDER",
+									message, email, getVisitorPhone(visitorId));
+						}
+					}
+				}
 			}
-			
-			String autoCancel = "UPDATE bookings "
-					+ "SET status = 'Cancelled', cancelled_at = CURRENT_TIMESTAMP "
+
+			String expiredQuery = "SELECT booking_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email "
+					+ "FROM bookings "
 					+ "WHERE status = 'Pending' "
 					+ "AND reminder_sent_at IS NOT NULL "
 					+ "AND confirmation_deadline IS NOT NULL "
 					+ "AND confirmation_deadline <= CURRENT_TIMESTAMP";
 
-			try (PreparedStatement ps = connection.prepareStatement(autoCancel)) {
-				ps.executeUpdate();
+			try (PreparedStatement selectPs = connection.prepareStatement(expiredQuery);
+					ResultSet rs = selectPs.executeQuery()) {
+
+				while (rs.next()) {
+					int bookingId = rs.getInt("booking_id");
+					String visitorId = rs.getString("visitor_id");
+					String parkName = rs.getString("park_name");
+					String visitDate = String.valueOf(rs.getDate("visit_date"));
+					String visitTime = String.valueOf(rs.getTime("visit_time"));
+					int visitorsCount = rs.getInt("visitors_count");
+					String email = rs.getString("email");
+
+					String updateCancel = "UPDATE bookings "
+							+ "SET status = 'Cancelled', cancelled_at = CURRENT_TIMESTAMP "
+							+ "WHERE booking_id = ? "
+							+ "AND status = 'Pending' "
+							+ "AND confirmation_deadline <= CURRENT_TIMESTAMP";
+
+					try (PreparedStatement updatePs = connection.prepareStatement(updateCancel)) {
+						updatePs.setInt(1, bookingId);
+
+						if (updatePs.executeUpdate() > 0) {
+							String message = "Your booking was automatically cancelled because you did not confirm in time.\n"
+									+ "Park: " + parkName + "\n"
+									+ "Date: " + visitDate + "\n"
+									+ "Time: " + visitTime + "\n"
+									+ "Visitors: " + visitorsCount;
+
+							createNotification(visitorId, bookingId, "AUTO_CANCEL",
+									message, email, getVisitorPhone(visitorId));
+						}
+					}
+				}
 			}
 
 		} catch (Exception e) {
@@ -590,27 +654,121 @@ public class DatabaseController {
 
 	public void manageWaitingListQueue() {
 		try {
-			connection.prepareStatement(
-					"DELETE FROM waitinglist WHERE notified_time IS NOT NULL AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) >= 60")
-					.executeUpdate();
-			String getWaiting = "SELECT * FROM waitinglist WHERE notified_time IS NULL ORDER BY request_time ASC, waiting_id ASC";
-			try (PreparedStatement ps = connection.prepareStatement(getWaiting); ResultSet rs = ps.executeQuery()) {
+			String passedVisits = "SELECT waiting_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email "
+					+ "FROM waitinglist "
+					+ "WHERE TIMESTAMP(visit_date, visit_time) <= CURRENT_TIMESTAMP";
+
+			try (PreparedStatement ps = connection.prepareStatement(passedVisits);
+					ResultSet rs = ps.executeQuery()) {
+
+				while (rs.next()) {
+					int waitingId = rs.getInt("waiting_id");
+					String visitorId = rs.getString("visitor_id");
+					String parkName = rs.getString("park_name");
+					String visitDate = String.valueOf(rs.getDate("visit_date"));
+					String visitTime = String.valueOf(rs.getTime("visit_time"));
+					int visitorsCount = rs.getInt("visitors_count");
+					String email = rs.getString("email");
+
+					String message = "Your waiting-list request was closed because the visit time passed.\n"
+							+ "Park: " + parkName + "\n"
+							+ "Date: " + visitDate + "\n"
+							+ "Time: " + visitTime + "\n"
+							+ "Visitors: " + visitorsCount;
+
+					createNotification(visitorId, null, "WAITING_LIST_VISIT_PASSED",
+							message, email, getVisitorPhone(visitorId));
+
+					try (PreparedStatement deletePs = connection
+							.prepareStatement("DELETE FROM waitinglist WHERE waiting_id = ?")) {
+						deletePs.setInt(1, waitingId);
+						deletePs.executeUpdate();
+					}
+				}
+			}
+			String expiredOffers = "SELECT waiting_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email "
+					+ "FROM waitinglist "
+					+ "WHERE notified_time IS NOT NULL "
+					+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) >= 60";
+
+			try (PreparedStatement ps = connection.prepareStatement(expiredOffers);
+					ResultSet rs = ps.executeQuery()) {
+
+				while (rs.next()) {
+					int waitingId = rs.getInt("waiting_id");
+					String visitorId = rs.getString("visitor_id");
+					String parkName = rs.getString("park_name");
+					String visitDate = String.valueOf(rs.getDate("visit_date"));
+					String visitTime = String.valueOf(rs.getTime("visit_time"));
+					int visitorsCount = rs.getInt("visitors_count");
+					String email = rs.getString("email");
+
+					String message = "Your waiting-list offer expired because you did not claim it within 1 hour.\n"
+							+ "Park: " + parkName + "\n"
+							+ "Date: " + visitDate + "\n"
+							+ "Time: " + visitTime + "\n"
+							+ "Visitors: " + visitorsCount + "\n"
+							+ "The spot was passed to the next visitor in the waiting list.";
+
+					createNotification(visitorId, null, "WAITING_LIST_EXPIRED",
+							message, email, getVisitorPhone(visitorId));
+
+					try (PreparedStatement deletePs = connection
+							.prepareStatement("DELETE FROM waitinglist WHERE waiting_id = ?")) {
+						deletePs.setInt(1, waitingId);
+						deletePs.executeUpdate();
+					}
+				}
+			}
+
+			String getWaiting = "SELECT * FROM waitinglist "
+					+ "WHERE notified_time IS NULL "
+					+ "AND TIMESTAMP(visit_date, visit_time) > CURRENT_TIMESTAMP "
+					+ "ORDER BY request_time ASC, waiting_id ASC";
+
+			try (PreparedStatement ps = connection.prepareStatement(getWaiting);
+					ResultSet rs = ps.executeQuery()) {
+
 				HashSet<String> blockedSlots = new HashSet<>();
+
 				while (rs.next()) {
 					int wId = rs.getInt("waiting_id");
+					String visitorId = rs.getString("visitor_id");
 					String park = rs.getString("park_name");
 					LocalDate date = rs.getDate("visit_date").toLocalDate();
 					LocalTime time = rs.getTime("visit_time").toLocalTime();
 					int visitors = rs.getInt("visitors_count");
+					String email = rs.getString("email");
+
 					String slotKey = park + "_" + date + "_" + time;
-					if (blockedSlots.contains(slotKey))
+
+					if (blockedSlots.contains(slotKey)) {
 						continue;
+					}
 
 					if (countVisitorsAt(park, date, time) + visitors <= getBookableCapacity(park)) {
-						PreparedStatement psNotify = connection.prepareStatement(
-								"UPDATE waitinglist SET notified_time = CURRENT_TIMESTAMP WHERE waiting_id = ?");
-						psNotify.setInt(1, wId);
-						psNotify.executeUpdate();
+						String updateQ = "UPDATE waitinglist "
+								+ "SET notified_time = CURRENT_TIMESTAMP "
+								+ "WHERE waiting_id = ? "
+								+ "AND notified_time IS NULL";
+
+						try (PreparedStatement psNotify = connection.prepareStatement(updateQ)) {
+							psNotify.setInt(1, wId);
+
+							if (psNotify.executeUpdate() > 0) {
+								String message = "A place opened for your waiting-list request.\n"
+										+ "Park: " + park + "\n"
+										+ "Date: " + date + "\n"
+										+ "Time: " + time + "\n"
+										+ "Visitors: " + visitors + "\n"
+										+ "You have 1 hour to make the booking before it passes to the next visitor.";
+
+								createNotification(visitorId, null, "WAITING_LIST_AVAILABLE",
+										message, email, getVisitorPhone(visitorId));
+
+								blockedSlots.add(slotKey);
+							}
+						}
 					} else {
 						blockedSlots.add(slotKey);
 					}
@@ -1015,6 +1173,27 @@ public class DatabaseController {
 			return false;
 		}
 	}
+	public int getApprovedDiscountPercent(String parkName) {
+		String q = "SELECT COALESCE(MAX(discount_percent), 0) AS discount_percent "
+				+ "FROM discount_requests "
+				+ "WHERE park_name = ? "
+				+ "AND status = 'Approved'";
+
+		try (PreparedStatement ps = connection.prepareStatement(q)) {
+			ps.setString(1, parkName);
+
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) {
+					return rs.getInt("discount_percent");
+				}
+			}
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		return 0;
+	}
 
 	public ArrayList<ArrayList<Object>> getPendingParkChangeRequests() {
 		ArrayList<ArrayList<Object>> list = new ArrayList<>();
@@ -1198,52 +1377,201 @@ public class DatabaseController {
 
 	public java.util.HashMap<String, Integer> reportVisitorsByType(String park, int year, int month) {
 		java.util.HashMap<String, Integer> map = new java.util.HashMap<>();
-		String q = "SELECT booking_type, SUM(visitors_count) FROM bookings WHERE park_name=? AND YEAR(visit_date)=? "
-				+ "AND MONTH(visit_date)=? AND status IN ('Confirmed','Entered','Exited') GROUP BY booking_type";
+
+		map.put("Alone", 0);
+		map.put("Private Group", 0);
+		map.put("Guided Group", 0);
+
+		String q = "SELECT visitors_count, is_guide_group, booking_type "
+				+ "FROM bookings "
+				+ "WHERE park_name = ? "
+				+ "AND YEAR(visit_date) = ? "
+				+ "AND MONTH(visit_date) = ? "
+				+ "AND status IN ('Confirmed', 'Entered', 'Exited')";
+
 		try (PreparedStatement ps = connection.prepareStatement(q)) {
 			ps.setString(1, park);
 			ps.setInt(2, year);
 			ps.setInt(3, month);
+
 			try (ResultSet rs = ps.executeQuery()) {
-				while (rs.next())
-					map.put(rs.getString(1) == null ? "Unknown" : rs.getString(1), rs.getInt(2));
+				while (rs.next()) {
+					int visitors = rs.getInt("visitors_count");
+					boolean guideGroup = rs.getInt("is_guide_group") == 1
+							|| "Guide".equals(rs.getString("booking_type"));
+
+					if (guideGroup) {
+						map.put("Guided Group", map.get("Guided Group") + visitors);
+					} else if (visitors == 1) {
+						map.put("Alone", map.get("Alone") + visitors);
+					} else {
+						map.put("Private Group", map.get("Private Group") + visitors);
+					}
+				}
 			}
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+
 		return map;
 	}
+	public ArrayList<ArrayList<Object>> reportDetailedVisits(String park, int year, int month) {
+		ArrayList<ArrayList<Object>> rows = new ArrayList<>();
 
-	public java.util.ArrayList<Integer> reportCancellations(String park, int year, int month) {
-		int cancelled = 0, noShow = 0;
-		String c = "SELECT COUNT(*) FROM bookings WHERE park_name=? AND YEAR(visit_date)=? AND MONTH(visit_date)=? AND status='Cancelled'";
-		String n = "SELECT COUNT(*) FROM bookings WHERE park_name=? AND YEAR(visit_date)=? AND MONTH(visit_date)=? "
-				+ "AND status NOT IN ('Cancelled','Entered','Exited') AND visit_date < CURDATE()";
-		try (PreparedStatement ps = connection.prepareStatement(c)) {
+		String q = "SELECT booking_id, visitor_id, park_name, visit_date, visit_time, visitors_count, "
+				+ "booking_type, is_guide_group, checkin_time, checkout_time, status "
+				+ "FROM bookings "
+				+ "WHERE park_name = ? "
+				+ "AND YEAR(visit_date) = ? "
+				+ "AND MONTH(visit_date) = ? "
+				+ "AND status IN ('Entered', 'Exited', 'Confirmed') "
+				+ "ORDER BY visit_date, visit_time, booking_id";
+
+		try (PreparedStatement ps = connection.prepareStatement(q)) {
 			ps.setString(1, park);
 			ps.setInt(2, year);
 			ps.setInt(3, month);
+
 			try (ResultSet rs = ps.executeQuery()) {
-				if (rs.next())
-					cancelled = rs.getInt(1);
+				while (rs.next()) {
+					int visitorsCount = rs.getInt("visitors_count");
+					boolean guideGroup = rs.getInt("is_guide_group") == 1
+							|| "Guide".equals(rs.getString("booking_type"));
+
+					String visitType;
+					if (guideGroup) {
+						visitType = "Guided Group";
+					} else if (visitorsCount == 1) {
+						visitType = "Alone";
+					} else {
+						visitType = "Private Group";
+					}
+
+					ArrayList<Object> row = new ArrayList<>();
+					row.add(rs.getInt("booking_id"));
+					row.add(rs.getString("visitor_id"));
+					row.add(String.valueOf(rs.getDate("visit_date")));
+					row.add(String.valueOf(rs.getTime("visit_time")));
+					row.add(visitorsCount);
+					row.add(visitType);
+					row.add(String.valueOf(rs.getTimestamp("checkin_time")));
+					row.add(String.valueOf(rs.getTimestamp("checkout_time")));
+					row.add(rs.getString("status"));
+
+					rows.add(row);
+				}
 			}
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		try (PreparedStatement ps = connection.prepareStatement(n)) {
-			ps.setString(1, park);
-			ps.setInt(2, year);
-			ps.setInt(3, month);
-			try (ResultSet rs = ps.executeQuery()) {
-				if (rs.next())
-					noShow = rs.getInt(1);
+
+		return rows;
+	}
+	public ArrayList<ArrayList<Object>> reportParkNotFull(String park, int year, int month) {
+		ArrayList<ArrayList<Object>> rows = new ArrayList<>();
+
+		int capacity = getParkCapacity(park);
+		if (capacity <= 0) {
+			return rows;
+		}
+
+		YearMonth ym = YearMonth.of(year, month);
+
+		for (int day = 1; day <= ym.lengthOfMonth(); day++) {
+			LocalDate date = ym.atDay(day);
+
+			int peakVisitors = 0;
+			int notFullHours = 0;
+
+			for (int hour = 8; hour < 18; hour++) {
+				int visitorsAtHour = countVisitorsAt(park, date, LocalTime.of(hour, 0));
+
+				if (visitorsAtHour > peakVisitors) {
+					peakVisitors = visitorsAtHour;
+				}
+
+				if (visitorsAtHour < capacity) {
+					notFullHours++;
+				}
 			}
+
+			if (notFullHours > 0) {
+				ArrayList<Object> row = new ArrayList<>();
+				row.add(String.valueOf(date));
+				row.add(peakVisitors);
+				row.add(capacity);
+				row.add(Math.max(0, capacity - peakVisitors));
+				row.add(notFullHours);
+				rows.add(row);
+			}
+		}
+
+		return rows;
+	}
+
+	public ArrayList<Object> reportCancellations(String park, int year, int month) {
+		ArrayList<ArrayList<Object>> dailyRows = new ArrayList<>();
+
+		int totalCancelled = 0;
+		int totalNoShow = 0;
+
+		String parkCondition = "ALL".equals(park) ? "" : "AND park_name = ? ";
+
+		String q = "SELECT DAY(visit_date) AS visit_day, "
+				+ "SUM(CASE WHEN status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled_count, "
+				+ "SUM(CASE WHEN status NOT IN ('Cancelled', 'Entered', 'Exited') "
+				+ "AND TIMESTAMP(visit_date, visit_time) < CURRENT_TIMESTAMP THEN 1 ELSE 0 END) AS no_show_count "
+				+ "FROM bookings "
+				+ "WHERE YEAR(visit_date) = ? "
+				+ "AND MONTH(visit_date) = ? "
+				+ parkCondition
+				+ "GROUP BY DAY(visit_date) "
+				+ "ORDER BY visit_day";
+
+		try (PreparedStatement ps = connection.prepareStatement(q)) {
+			int index = 1;
+
+			ps.setInt(index++, year);
+			ps.setInt(index++, month);
+
+			if (!"ALL".equals(park)) {
+				ps.setString(index++, park);
+			}
+
+			try (ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) {
+					int day = rs.getInt("visit_day");
+					int cancelled = rs.getInt("cancelled_count");
+					int noShow = rs.getInt("no_show_count");
+
+					if (cancelled > 0 || noShow > 0) {
+						ArrayList<Object> row = new ArrayList<>();
+						row.add(String.valueOf(day));
+						row.add(cancelled);
+						row.add(noShow);
+						dailyRows.add(row);
+
+						totalCancelled += cancelled;
+						totalNoShow += noShow;
+					}
+				}
+			}
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		java.util.ArrayList<Integer> out = new java.util.ArrayList<>();
-		out.add(cancelled);
-		out.add(noShow);
-		return out;
+
+		int daysWithData = dailyRows.size();
+		double averageCancelledPerDay = daysWithData == 0 ? 0.0 : (double) totalCancelled / daysWithData;
+
+		ArrayList<Object> result = new ArrayList<>();
+		result.add(dailyRows);
+		result.add(totalCancelled);
+		result.add(totalNoShow);
+		result.add(averageCancelledPerDay);
+
+		return result;
 	}
 }

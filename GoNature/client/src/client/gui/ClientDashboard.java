@@ -175,7 +175,8 @@ public class ClientDashboard extends Application {
 					+ "2. Regular Occasional (Walk-in): Full price (No discount).\n\n"
 					+ "3. Group Pre-booked: 25% discount + Extra 12% off for prepayment. The Guide enters for FREE.\n\n"
 					+ "4. Group Occasional (Walk-in): 10% discount from the full price. The Guide pays.\n\n"
-					+ "5. Subscribers: Receive an additional 10% compound discount on top of any other discounts!");
+					+ "5. Subscribers: Receive an additional 10% compound discount on top of any other discounts!\n\n"
+					+ "6. Approved park discounts: If the department manager approved a park discount, it is applied to the final bill.");
 			pricesAlert.showAndWait();
 		});
 		btnNotifications.setOnAction(e -> showRecentNotifications(true));
@@ -250,7 +251,9 @@ public class ClientDashboard extends Application {
 			b.setGuideGroup(guideGroup);
 			b.setSubscriber(isSubscriberAccount);
 
+			int approvedDiscount = getApprovedDiscountPercent(parkCombo.getValue());
 			int calculatedPrice = calculatePrice(visitors, b.getVisitorType(), isSubscriberAccount, true, true);
+			calculatedPrice = applyApprovedParkDiscount(calculatedPrice, approvedDiscount);
 			b.setPrice(calculatedPrice);
 			try {
 
@@ -258,7 +261,9 @@ public class ClientDashboard extends Application {
 
 				if ("OK".equals(response.getCommand())) {
 					Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
-							"Total price is " + calculatedPrice + " ILS (Discounts applied).\nProceed to payment?",
+							"Total price is " + calculatedPrice + " ILS (Discounts applied)."
+									+ approvedDiscountText(approvedDiscount)
+									+ "\nProceed to payment?",
 							ButtonType.YES, ButtonType.NO);
 					alert.showAndWait();
 					if (alert.getResult() == ButtonType.YES) {
@@ -280,10 +285,14 @@ public class ClientDashboard extends Application {
 					splitAlert.showAndWait();
 
 					if (splitAlert.getResult() == splitBtn) {
+						int splitApprovedDiscount = getApprovedDiscountPercent(b.getParkName());
 						int splitPrice = calculatePrice(availableSpots, b.getVisitorType(), isSubscriberAccount, true,
 								true);
+						splitPrice = applyApprovedParkDiscount(splitPrice, splitApprovedDiscount);
 						Alert payAlert = new Alert(Alert.AlertType.CONFIRMATION, "Price for " + availableSpots
-								+ " spots is " + splitPrice + " ILS.\nProceed to payment?", ButtonType.YES,
+								+ " spots is " + splitPrice + " ILS."
+								+ approvedDiscountText(splitApprovedDiscount)
+								+ "\nProceed to payment?", ButtonType.YES,
 								ButtonType.NO);
 						payAlert.showAndWait();
 						if (payAlert.getResult() == ButtonType.YES) {
@@ -376,7 +385,9 @@ public class ClientDashboard extends Application {
 			boolean guideGroup = isAccountGuide && chkIsGuide.isSelected();
 
 			String newType = guideGroup ? "Guide" : "Regular Visitor";
+			int approvedDiscount = getApprovedDiscountPercent(parkCombo.getValue());
 			int newPrice = calculatePrice(visitors, newType, isSubscriberAccount, true, true);
+			newPrice = applyApprovedParkDiscount(newPrice, approvedDiscount);
 			int oldPrice = selectedBooking.getPrice();
 			int diff = newPrice - oldPrice;
 
@@ -459,6 +470,36 @@ public class ClientDashboard extends Application {
 			finalPrice = finalPrice * 0.90;
 		return (int) Math.round(finalPrice);
 	}
+	private int getApprovedDiscountPercent(String parkName) {
+		try {
+			Message resp = ClientSession.send(new Message("GET_APPROVED_DISCOUNT", parkName));
+
+			if ("APPROVED_DISCOUNT".equals(resp.getCommand())) {
+				return (int) resp.getData();
+			}
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		return 0;
+	}
+
+	private int applyApprovedParkDiscount(int price, int discountPercent) {
+		if (discountPercent <= 0) {
+			return price;
+		}
+
+		return (int) Math.round(price * (1 - discountPercent / 100.0));
+	}
+
+	private String approvedDiscountText(int discountPercent) {
+		if (discountPercent <= 0) {
+			return "";
+		}
+
+		return "\nApproved park discount applied: " + discountPercent + "%";
+	}
 
 	private void checkTomorrowBookings() {
 		LocalDate tomorrow = LocalDate.now().plusDays(1);
@@ -511,9 +552,13 @@ public class ClientDashboard extends Application {
 				alert.showAndWait();
 
 				if (alert.getResult() == orderBtn) {
+					int approvedDiscount = getApprovedDiscountPercent(park);
 					int finalPrice = calculatePrice(visitors, wlVisitorType, isSubscriberAccount, true, true);
+					finalPrice = applyApprovedParkDiscount(finalPrice, approvedDiscount);
 					Alert payAlert = new Alert(Alert.AlertType.CONFIRMATION,
-							"Total price is " + finalPrice + " ILS (Discounts applied).\nProceed to payment?",
+							"Total price is " + finalPrice + " ILS (Discounts applied)."
+									+ approvedDiscountText(approvedDiscount)
+									+ "\nProceed to payment?",
 							ButtonType.YES, ButtonType.NO);
 					payAlert.showAndWait();
 					if (payAlert.getResult() == ButtonType.YES) {
