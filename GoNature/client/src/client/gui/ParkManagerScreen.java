@@ -50,8 +50,7 @@ public class ParkManagerScreen extends Application {
 	public void start(Stage stage) {
 		stage.setTitle("GoNature - Park Manager");
 
-		parkCombo.getItems().addAll("Carmel Park", "Jordan Park", "Banias Park", "Safari Zoo", "Ramon Crater",
-				"Hula Valley");
+		parkCombo.getItems().addAll(common.Parks.NAMES);
 		parkCombo.setValue("Carmel Park");
 		parkCombo.setOnAction(e -> loadCapacity());
 		for (int m = 1; m <= 12; m++) {

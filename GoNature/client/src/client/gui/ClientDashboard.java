@@ -85,8 +85,7 @@ public class ClientDashboard extends Application {
 		HBox topBar = new HBox(20, welcomeLabel, chkIsGuide, rightAlign);
 		topBar.setAlignment(Pos.CENTER_LEFT);
 
-		parkCombo.getItems().addAll("Carmel Park", "Jordan Park", "Banias Park", "Safari Zoo", "Ramon Crater",
-				"Hula Valley");
+		parkCombo.getItems().addAll(common.Parks.NAMES);
 		parkCombo.setValue("Carmel Park");
 
 		TableColumn<Booking, Integer> idCol = new TableColumn<>("Booking ID");

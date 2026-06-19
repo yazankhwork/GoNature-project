@@ -48,8 +48,7 @@ public class ReportsScreen extends Application {
 	public void start(Stage stage) {
 		stage.setTitle("GoNature - Department Manager Reports");
 
-		parkCombo.getItems().addAll("Carmel Park", "Jordan Park", "Banias Park", "Safari Zoo", "Ramon Crater",
-				"Hula Valley");
+		parkCombo.getItems().addAll(common.Parks.NAMES);
 		parkCombo.setValue("Carmel Park");
 		parkCombo.setOnAction(e -> updateLiveCapacity());
 

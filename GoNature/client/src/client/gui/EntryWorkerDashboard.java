@@ -52,8 +52,7 @@ public class EntryWorkerDashboard extends Application {
 		HBox top = new HBox(20, title, subtitle, logout);
 		HBox.setHgrow(subtitle, Priority.ALWAYS);
 
-		parkCombo.getItems().addAll("Carmel Park", "Jordan Park", "Banias Park", "Safari Zoo", "Ramon Crater",
-				"Hula Valley");
+		parkCombo.getItems().addAll(common.Parks.NAMES);
 		parkCombo.setValue("Carmel Park");
 
 		Button active = new Button("Visitors In Park Now");
