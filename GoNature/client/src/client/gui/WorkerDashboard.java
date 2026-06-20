@@ -38,9 +38,6 @@ public class WorkerDashboard extends Application {
 		btnLogout.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold;");
 		btnLogout.setOnAction(e -> LogoutHelper.logout(primaryStage));
 
-		// ==========================================
-		// TAB 1: Subscription Registration
-		// ==========================================
 		TabPane tabPane = new TabPane();
 
 		Tab subTab = new Tab("Family Subscriptions");
@@ -65,7 +62,7 @@ public class WorkerDashboard extends Application {
 		subLastName.setPromptText("Last Name");
 
 		TextField subPhone = new TextField();
-		subPhone.setPromptText("Phone Number");
+		subPhone.setPromptText("Phone Number (10 digits)");
 
 		TextField subEmail = new TextField();
 		subEmail.setPromptText("Email");
@@ -130,6 +127,11 @@ public class WorkerDashboard extends Application {
 
 			if (firstName.isEmpty() || lastName.isEmpty() || phone.isEmpty() || email.isEmpty()) {
 				subResponse.setText("Name, phone, and email are required!");
+				return;
+			}
+			
+			if (!phone.matches("\\d{10}")) {
+				subResponse.setText("Phone must be exactly 10 digits!");
 				return;
 			}
 
@@ -200,9 +202,6 @@ public class WorkerDashboard extends Application {
 		subLayout.getChildren().addAll(new Label("Register New Family Subscription"), subGrid, btnRegSub, subResponse);
 		subTab.setContent(subLayout);
 
-		// ==========================================
-		// TAB 2: Certified Guide Registration
-		// ==========================================
 		Tab guideTab = new Tab("Certified Guides");
 		guideTab.setClosable(false);
 
@@ -220,11 +219,11 @@ public class WorkerDashboard extends Application {
 		PasswordField guidePassInput = new PasswordField();
 		guidePassInput.setPromptText("Assign Password");
 		TextField guideNameInput = new TextField();
-		guideNameInput.setPromptText("Full Name");
+		guideNameInput.setPromptText("Username (for Guide Login)"); // שינינו ל-Username לפי הבקשה!
 
 		guideGrid.add(new Label("Guide ID:"), 0, 0);
 		guideGrid.add(guideIdInput, 1, 0);
-		guideGrid.add(new Label("Full Name:"), 0, 1);
+		guideGrid.add(new Label("Username:"), 0, 1);
 		guideGrid.add(guideNameInput, 1, 1);
 		guideGrid.add(new Label("Assign Password:"), 0, 2);
 		guideGrid.add(guidePassInput, 1, 2);

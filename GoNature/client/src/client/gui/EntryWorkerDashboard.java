@@ -16,23 +16,13 @@ import javafx.stage.Stage;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
-/**
- * Entry-worker dashboard: gate check-in by booking ID, check-out, casual
- * walk-in admission, and a live count of visitors currently in the park.
- * Written in the same code-built JavaFX + string-command style as the rest of
- * this project (no FXML), so it drops straight into the existing client.
- */
 public class EntryWorkerDashboard extends Application {
 
-	/** Set by the login screen before this dashboard opens. */
 	public static String loggedInEmpName = "Worker";
 
 	private final ComboBox<String> parkCombo = new ComboBox<>();
 	private final Label result = new Label("Ready.");
 
-	/**
-	 * One request, one response, matching this project's socket-per-action style.
-	 */
 	private static Message request(Message m) throws Exception {
 		return ClientSession.send(m);
 	}
@@ -53,7 +43,8 @@ public class EntryWorkerDashboard extends Application {
 		HBox.setHgrow(subtitle, Priority.ALWAYS);
 
 		parkCombo.getItems().addAll(common.Parks.NAMES);
-		parkCombo.setValue("Carmel Park");
+		parkCombo.setValue(ClientSession.employeeParkName);
+		parkCombo.setDisable(true); // עובד הכניסה לא יכול להכניס לפארק אחר
 
 		Button active = new Button("Visitors In Park Now");
 		active.setOnAction(e -> {
@@ -67,7 +58,6 @@ public class EntryWorkerDashboard extends Application {
 			}
 		});
 
-		// --- Check-in / Check-out by booking ID ---
 		TextField bookingId = new TextField();
 		bookingId.setPromptText("Confirmation Code");
 		Button checkIn = new Button("Check In");
@@ -109,7 +99,6 @@ public class EntryWorkerDashboard extends Application {
 
 		HBox entryRow = new HBox(10, new Label("Confirmation Code:"), bookingId, checkIn, checkOut);
 
-		// --- Casual walk-in ---
 		TextField casualCount = new TextField("1");
 		CheckBox casualGuideGroup = new CheckBox("Casual group with guide");
 		Button casual = new Button("Admit Walk-in");

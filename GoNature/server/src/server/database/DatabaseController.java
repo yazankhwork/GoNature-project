@@ -52,8 +52,8 @@ public class DatabaseController {
 		return bookingDAO.countVisitorsAt(parkName, date, time);
 	}
 
-	public String[] loginVisitor(String visitorId, String username) {
-		return visitorDAO.loginVisitor(visitorId, username);
+	public String[] loginVisitor(String username, String password) {
+		return visitorDAO.loginVisitor(username, password);
 	}
 
 	public String[] loginEmployee(String empId, String password) {
@@ -66,14 +66,12 @@ public class DatabaseController {
 				familyMembers, paymentMethod, creditCard);
 	}
 
-	public String registerVisitor(String visitorId, String username, boolean isGuide, String fullName) {
-		return visitorDAO.registerVisitor(visitorId, username, isGuide, fullName);
+	public String registerVisitor(String visitorId, String username, String password, String email, String phone) {
+		return visitorDAO.registerVisitor(visitorId, username, password, email, phone);
 	}
 
-	// NEW: Logic to either INSERT a new guide or UPDATE an existing visitor to a
-	// guide
-	public String registerOrUpdateGuide(String visitorId, String password, String fullName) {
-		return visitorDAO.registerOrUpdateGuide(visitorId, password, fullName);
+	public String registerOrUpdateGuide(String visitorId, String password, String username) {
+		return visitorDAO.registerOrUpdateGuide(visitorId, password, username);
 	}
 
 	public boolean saveBooking(Booking b) {
@@ -206,9 +204,11 @@ public class DatabaseController {
 		return parkDAO.createParkChangeRequest(parkName, newCapacity, newBookingPercent,
 				newVisitDurationHours, requestedBy);
 	}
-	public boolean createDiscountRequest(String parkName, String discountName, int discountPercent, String requestedBy) {
-		return discountDAO.createDiscountRequest(parkName, discountName, discountPercent, requestedBy);
+	
+	public boolean createDiscountRequest(String parkName, String discountName, int discountPercent, String startDate, String endDate, String requestedBy) {
+		return discountDAO.createDiscountRequest(parkName, discountName, discountPercent, startDate, endDate, requestedBy);
 	}
+	
 	public ArrayList<ArrayList<Object>> getPendingDiscountRequests() {
 		return discountDAO.getPendingDiscountRequests();
 	}

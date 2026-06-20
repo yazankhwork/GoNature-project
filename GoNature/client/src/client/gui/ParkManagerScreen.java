@@ -1,14 +1,14 @@
 package client.gui;
 
 import javafx.application.Application;
-import javafx.geometry.Insets;
-import javafx.scene.Scene;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.util.Duration;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
 import javafx.stage.Stage;
 
 import common.Message;
@@ -19,12 +19,6 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Park manager screen. Lets a park manager view and change a park's maximum
- * capacity (the "quota" parameter from the story). In the full story such a
- * change requires department-manager approval; this student version applies it
- * directly and shows a note.
- */
 public class ParkManagerScreen extends Application {
 
 	private final ComboBox<String> parkCombo = new ComboBox<>();
@@ -41,6 +35,9 @@ public class ParkManagerScreen extends Application {
 	private final ComboBox<Integer> reportMonthCombo = new ComboBox<>();
 	private final ComboBox<Integer> reportYearCombo = new ComboBox<>();
 	private final Label statusLabel = new Label();
+	
+	private final DatePicker startDatePicker = new DatePicker(LocalDate.now());
+	private final DatePicker endDatePicker = new DatePicker(LocalDate.now().plusDays(7));
 
 	private static Message request(Message m) throws Exception {
 		return ClientSession.send(m);
@@ -51,8 +48,9 @@ public class ParkManagerScreen extends Application {
 		stage.setTitle("GoNature - Park Manager");
 
 		parkCombo.getItems().addAll(common.Parks.NAMES);
-		parkCombo.setValue("Carmel Park");
-		parkCombo.setOnAction(e -> loadCapacity());
+		parkCombo.setValue(ClientSession.employeeParkName);
+		parkCombo.setDisable(true); // מנהל פארק לא יכול לעשות שינויים בפארק אחר
+
 		for (int m = 1; m <= 12; m++) {
 			reportMonthCombo.getItems().add(m);
 		}
@@ -131,6 +129,7 @@ public class ParkManagerScreen extends Application {
 				statusLabel.setText("Connection error.");
 			}
 		});
+		
 		Button discountBtn = new Button("Send Discount Request");
 		discountBtn.setOnAction(e -> {
 			String discountName = discountNameField.getText().trim();
@@ -155,12 +154,20 @@ public class ParkManagerScreen extends Application {
 				statusLabel.setText("Discount percent must be between 1 and 100.");
 				return;
 			}
+			
+			if (startDatePicker.getValue() == null || endDatePicker.getValue() == null) {
+				statusLabel.setStyle("-fx-text-fill: red;");
+				statusLabel.setText("Start Date and End Date required for Discount.");
+				return;
+			}
 
 			try {
 				ArrayList<Object> data = new ArrayList<>();
 				data.add(parkCombo.getValue());
 				data.add(discountName);
 				data.add(discountPercent);
+				data.add(startDatePicker.getValue().toString());
+				data.add(endDatePicker.getValue().toString());
 				data.add(ClientSession.loggedInId);
 
 				Message resp = request(new Message("CREATE_DISCOUNT_REQUEST", data));
@@ -180,6 +187,7 @@ public class ParkManagerScreen extends Application {
 				statusLabel.setText("Connection error.");
 			}
 		});
+		
 		Button monthlyVisitorsReportBtn = new Button("Monthly Visitors Report");
 		monthlyVisitorsReportBtn.setOnAction(e -> showMonthlyVisitorsReport());
 		Button notFullReportBtn = new Button("Park Not-Full Report");
@@ -203,13 +211,16 @@ public class ParkManagerScreen extends Application {
 		grid.addRow(8, new Label("New duration hours:"), newDurationField, updateBtn);
 
 		grid.addRow(9, new Label("Discount name:"), discountNameField);
-		grid.addRow(10, new Label("Discount percent:"), discountPercentField, discountBtn);
-		grid.addRow(11, new Label("Report month/year:"), reportMonthCombo, reportYearCombo, monthlyVisitorsReportBtn);
-		grid.addRow(12, new Label("Capacity report:"), notFullReportBtn);
+		grid.addRow(10, new Label("Discount percent:"), discountPercentField);
+		grid.addRow(11, new Label("Start Date:"), startDatePicker);
+		grid.addRow(12, new Label("End Date:"), endDatePicker, discountBtn);
+		
+		grid.addRow(13, new Label("Report month/year:"), reportMonthCombo, reportYearCombo, monthlyVisitorsReportBtn);
+		grid.addRow(14, new Label("Capacity report:"), notFullReportBtn);
 		
 		VBox layout = new VBox(15, grid, statusLabel, logoutBtn);
 		layout.setPadding(new Insets(20));
-		stage.setScene(new Scene(layout, 780, 620));
+		stage.setScene(new Scene(layout, 780, 680));
 		stage.show();
 
 		loadCapacity();
@@ -252,6 +263,7 @@ public class ParkManagerScreen extends Application {
 			freeCapacityLabel.setText("Free places by max capacity: -");
 		}
 	}
+
 	@SuppressWarnings("unchecked")
 	private void showMonthlyVisitorsReport() {
 		try {
@@ -293,6 +305,7 @@ public class ParkManagerScreen extends Application {
 			new Alert(Alert.AlertType.ERROR, "Connection error while loading report.").showAndWait();
 		}
 	}
+
 	@SuppressWarnings("unchecked")
 	private void showParkNotFullReport() {
 		try {

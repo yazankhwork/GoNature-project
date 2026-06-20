@@ -53,8 +53,8 @@ public class BookingDAO {
 		boolean guideGroup = b.isGuideGroup() && (casualVisitor || visitorDAO.isVisitorGuide(b.getVisitorId()));
 		boolean subscriber = !casualVisitor && visitorDAO.isVisitorSubscriber(b.getVisitorId());
 		String query = "INSERT INTO bookings "
-				+ "(visitor_id, park_name, visit_date, visit_time, visitors_count, email, status, total_price, booking_type, confirmation_code, is_guide_group, is_subscriber) "
-				+ "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+				+ "(visitor_id, park_name, visit_date, visit_time, visitors_count, email, telephone, status, total_price, booking_type, confirmation_code, is_guide_group, is_subscriber) "
+				+ "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 		try (PreparedStatement pstmt = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
 			pstmt.setString(1, b.getVisitorId());
@@ -63,12 +63,13 @@ public class BookingDAO {
 			pstmt.setTime(4, Time.valueOf(b.getVisitTime()));
 			pstmt.setInt(5, b.getVisitorsCount());
 			pstmt.setString(6, b.getEmail());
-			pstmt.setString(7, b.getStatus());
-			pstmt.setInt(8, b.getPrice());
-			pstmt.setString(9, guideGroup ? "Guide" : "Regular Visitor");
-			pstmt.setString(10, code);
-			pstmt.setInt(11, guideGroup ? 1 : 0);
-			pstmt.setInt(12, subscriber ? 1 : 0);
+			pstmt.setString(7, b.getTelephone() == null ? "" : b.getTelephone());
+			pstmt.setString(8, b.getStatus());
+			pstmt.setInt(9, b.getPrice());
+			pstmt.setString(10, guideGroup ? "Guide" : "Regular Visitor");
+			pstmt.setString(11, code);
+			pstmt.setInt(12, guideGroup ? 1 : 0);
+			pstmt.setInt(13, subscriber ? 1 : 0);
 
 			if (pstmt.executeUpdate() > 0) {
 				int bookingId = -1;
@@ -88,13 +89,15 @@ public class BookingDAO {
 							+ "Confirmation Code: " + code + "\n"
 							+ "Total Price: " + b.getPrice() + " ILS";
 
+					String phoneToSend = (b.getTelephone() != null && !b.getTelephone().isEmpty()) ? b.getTelephone() : visitorDAO.getVisitorPhone(b.getVisitorId());
+					
 					notificationDAO.createNotification(
 							b.getVisitorId(),
 							bookingId == -1 ? null : bookingId,
 							"BOOKING_CONFIRMATION",
 							message,
 							b.getEmail(),
-							visitorDAO.getVisitorPhone(b.getVisitorId())
+							phoneToSend
 					);
 				}
 
@@ -120,6 +123,7 @@ public class BookingDAO {
 					b.setPrice(rs.getInt("total_price"));
 					b.setVisitorType(rs.getString("booking_type"));
 					b.setEmail(rs.getString("email"));
+					b.setTelephone(rs.getString("telephone"));
 					b.setGuideGroup(rs.getInt("is_guide_group") == 1);
 					b.setSubscriber(rs.getInt("is_subscriber") == 1);
 					return b;
@@ -150,6 +154,7 @@ public class BookingDAO {
 					b.setPrice(rs.getInt("total_price"));
 					b.setVisitorType(rs.getString("booking_type"));
 					b.setEmail(rs.getString("email"));
+					b.setTelephone(rs.getString("telephone"));
 					b.setGuideGroup(rs.getInt("is_guide_group") == 1);
 					b.setSubscriber(rs.getInt("is_subscriber") == 1);
 					return b;
@@ -163,7 +168,7 @@ public class BookingDAO {
 		return null;
 	}
 	public boolean updateBooking(Booking b) {
-		String query = "UPDATE bookings SET park_name=?, visit_date=?, visit_time=?, visitors_count=?, email=?, total_price=?, booking_type=?, is_guide_group=?, is_subscriber=? WHERE booking_id=? AND visitor_id=? AND status != 'Cancelled'";
+		String query = "UPDATE bookings SET park_name=?, visit_date=?, visit_time=?, visitors_count=?, email=?, telephone=?, total_price=?, booking_type=?, is_guide_group=?, is_subscriber=? WHERE booking_id=? AND visitor_id=? AND status != 'Cancelled'";
 		try (PreparedStatement pstmt = connection.prepareStatement(query)) {
 			boolean guideGroup = b.isGuideGroup() && visitorDAO.isVisitorGuide(b.getVisitorId());
 			boolean subscriber = visitorDAO.isVisitorSubscriber(b.getVisitorId());
@@ -173,12 +178,13 @@ public class BookingDAO {
 			pstmt.setTime(3, Time.valueOf(b.getVisitTime()));
 			pstmt.setInt(4, b.getVisitorsCount());
 			pstmt.setString(5, b.getEmail());
-			pstmt.setInt(6, b.getPrice());
-			pstmt.setString(7, guideGroup ? "Guide" : "Regular Visitor");
-			pstmt.setInt(8, guideGroup ? 1 : 0);
-			pstmt.setInt(9, subscriber ? 1 : 0);
-			pstmt.setInt(10, b.getBookingId());
-			pstmt.setString(11, b.getVisitorId());
+			pstmt.setString(6, b.getTelephone() == null ? "" : b.getTelephone());
+			pstmt.setInt(7, b.getPrice());
+			pstmt.setString(8, guideGroup ? "Guide" : "Regular Visitor");
+			pstmt.setInt(9, guideGroup ? 1 : 0);
+			pstmt.setInt(10, subscriber ? 1 : 0);
+			pstmt.setInt(11, b.getBookingId());
+			pstmt.setString(12, b.getVisitorId());
 			return pstmt.executeUpdate() > 0;
 		} catch (Exception e) {
 			return false;
@@ -241,7 +247,7 @@ public class BookingDAO {
 	}
 	public void processBookingConfirmations() {
 		try {
-			String remindersQuery = "SELECT booking_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email "
+			String remindersQuery = "SELECT booking_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email, telephone "
 					+ "FROM bookings "
 					+ "WHERE status = 'Pending' "
 					+ "AND visit_date = DATE_ADD(CURDATE(), INTERVAL 1 DAY) "
@@ -258,6 +264,7 @@ public class BookingDAO {
 					String visitTime = String.valueOf(rs.getTime("visit_time"));
 					int visitorsCount = rs.getInt("visitors_count");
 					String email = rs.getString("email");
+					String telephone = rs.getString("telephone");
 
 					String updateReminder = "UPDATE bookings "
 							+ "SET reminder_sent_at = CURRENT_TIMESTAMP, "
@@ -277,14 +284,15 @@ public class BookingDAO {
 									+ "Visitors: " + visitorsCount + "\n"
 									+ "Please confirm or cancel within 2 hours.";
 
+							String phoneToSend = (telephone != null && !telephone.isEmpty()) ? telephone : visitorDAO.getVisitorPhone(visitorId);
 							notificationDAO.createNotification(visitorId, bookingId, "VISIT_REMINDER",
-									message, email, visitorDAO.getVisitorPhone(visitorId));
+									message, email, phoneToSend);
 						}
 					}
 				}
 			}
 
-			String expiredQuery = "SELECT booking_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email "
+			String expiredQuery = "SELECT booking_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email, telephone "
 					+ "FROM bookings "
 					+ "WHERE status = 'Pending' "
 					+ "AND reminder_sent_at IS NOT NULL "
@@ -302,6 +310,7 @@ public class BookingDAO {
 					String visitTime = String.valueOf(rs.getTime("visit_time"));
 					int visitorsCount = rs.getInt("visitors_count");
 					String email = rs.getString("email");
+					String telephone = rs.getString("telephone");
 
 					String updateCancel = "UPDATE bookings "
 							+ "SET status = 'Cancelled', cancelled_at = CURRENT_TIMESTAMP "
@@ -319,8 +328,9 @@ public class BookingDAO {
 									+ "Time: " + visitTime + "\n"
 									+ "Visitors: " + visitorsCount;
 
+							String phoneToSend = (telephone != null && !telephone.isEmpty()) ? telephone : visitorDAO.getVisitorPhone(visitorId);
 							notificationDAO.createNotification(visitorId, bookingId, "AUTO_CANCEL",
-									message, email, visitorDAO.getVisitorPhone(visitorId));
+									message, email, phoneToSend);
 						}
 					}
 				}
@@ -357,7 +367,7 @@ public class BookingDAO {
 				+ "WHERE park_name = ? "
 				+ "AND visit_date = ? "
 				+ "AND notified_time IS NOT NULL "
-				+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) < 60 "
+				+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) < 120 "
 				+ "AND TIMESTAMP(visit_date, visit_time) > CURRENT_TIMESTAMP "
 				+ "AND visit_time < ADDTIME(?, SEC_TO_TIME(? * 3600)) "
 				+ "AND ADDTIME(visit_time, SEC_TO_TIME(? * 3600)) > ?";
@@ -420,6 +430,7 @@ public class BookingDAO {
 					b.setPrice(rs.getInt("total_price"));
 					b.setVisitorType(rs.getString("booking_type"));
 					b.setEmail(rs.getString("email"));
+					b.setTelephone(rs.getString("telephone"));
 					b.setGuideGroup(rs.getInt("is_guide_group") == 1);
 					b.setSubscriber(rs.getInt("is_subscriber") == 1);
 

@@ -4,7 +4,7 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 
 import common.Booking;
 
@@ -26,7 +26,7 @@ public class WaitingListDAO {
 	}
 
 	public boolean enterWaitingList(Booking b) {
-		String query = "INSERT INTO waitinglist (visitor_id, park_name, visit_date, visit_time, visitors_count, visitor_type, email) VALUES (?, ?, ?, ?, ?, ?, ?)";
+		String query = "INSERT INTO waitinglist (visitor_id, park_name, visit_date, visit_time, visitors_count, visitor_type, email, telephone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 		try (PreparedStatement pstmt = connection.prepareStatement(query)) {
 			pstmt.setString(1, b.getVisitorId());
 			pstmt.setString(2, b.getParkName());
@@ -35,6 +35,7 @@ public class WaitingListDAO {
 			pstmt.setInt(5, b.getVisitorsCount());
 			pstmt.setString(6, b.getVisitorType());
 			pstmt.setString(7, b.getEmail());
+			pstmt.setString(8, b.getTelephone() == null ? "" : b.getTelephone());
 			return pstmt.executeUpdate() > 0;
 		} catch (Exception e) {
 			return false;
@@ -43,11 +44,11 @@ public class WaitingListDAO {
 
 	public void manageWaitingListQueue() {
 		try {
-			String passedVisits = "SELECT waiting_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email "
+			// 1. מחיקת מי שהתאריך והשעה של הביקור שלו כבר עברו
+			String passedVisits = "SELECT waiting_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email, telephone "
 					+ "FROM waitinglist " + "WHERE TIMESTAMP(visit_date, visit_time) <= CURRENT_TIMESTAMP";
 
 			try (PreparedStatement ps = connection.prepareStatement(passedVisits); ResultSet rs = ps.executeQuery()) {
-
 				while (rs.next()) {
 					int waitingId = rs.getInt("waiting_id");
 					String visitorId = rs.getString("visitor_id");
@@ -56,27 +57,28 @@ public class WaitingListDAO {
 					String visitTime = String.valueOf(rs.getTime("visit_time"));
 					int visitorsCount = rs.getInt("visitors_count");
 					String email = rs.getString("email");
+					String telephone = rs.getString("telephone");
 
 					String message = "Your waiting-list request was closed because the visit time passed.\n" + "Park: "
 							+ parkName + "\n" + "Date: " + visitDate + "\n" + "Time: " + visitTime + "\n" + "Visitors: "
 							+ visitorsCount;
 
-					notificationDAO.createNotification(visitorId, null, "WAITING_LIST_VISIT_PASSED", message, email,
-							visitorDAO.getVisitorPhone(visitorId));
+					String phoneToSend = (telephone != null && !telephone.isEmpty()) ? telephone : visitorDAO.getVisitorPhone(visitorId);
+					notificationDAO.createNotification(visitorId, null, "WAITING_LIST_VISIT_PASSED", message, email, phoneToSend);
 
-					try (PreparedStatement deletePs = connection
-							.prepareStatement("DELETE FROM waitinglist WHERE waiting_id = ?")) {
+					try (PreparedStatement deletePs = connection.prepareStatement("DELETE FROM waitinglist WHERE waiting_id = ?")) {
 						deletePs.setInt(1, waitingId);
 						deletePs.executeUpdate();
 					}
 				}
 			}
-			String expiredOffers = "SELECT waiting_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email "
+			
+			// 2. פקיעת תוקף הצעות אחרי שעתיים (120 דקות)
+			String expiredOffers = "SELECT waiting_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email, telephone "
 					+ "FROM waitinglist " + "WHERE notified_time IS NOT NULL "
-					+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) >= 60";
+					+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) >= 120";
 
 			try (PreparedStatement ps = connection.prepareStatement(expiredOffers); ResultSet rs = ps.executeQuery()) {
-
 				while (rs.next()) {
 					int waitingId = rs.getInt("waiting_id");
 					String visitorId = rs.getString("visitor_id");
@@ -85,30 +87,43 @@ public class WaitingListDAO {
 					String visitTime = String.valueOf(rs.getTime("visit_time"));
 					int visitorsCount = rs.getInt("visitors_count");
 					String email = rs.getString("email");
+					String telephone = rs.getString("telephone");
 
-					String message = "Your waiting-list offer expired because you did not claim it within 1 hour.\n"
+					String message = "Your waiting-list offer expired because you did not claim it within 2 hours.\n"
 							+ "Park: " + parkName + "\n" + "Date: " + visitDate + "\n" + "Time: " + visitTime + "\n"
 							+ "Visitors: " + visitorsCount + "\n"
 							+ "The spot was passed to the next visitor in the waiting list.";
 
-					notificationDAO.createNotification(visitorId, null, "WAITING_LIST_EXPIRED", message, email,
-							visitorDAO.getVisitorPhone(visitorId));
-					try (PreparedStatement deletePs = connection
-							.prepareStatement("DELETE FROM waitinglist WHERE waiting_id = ?")) {
+					String phoneToSend = (telephone != null && !telephone.isEmpty()) ? telephone : visitorDAO.getVisitorPhone(visitorId);
+					notificationDAO.createNotification(visitorId, null, "WAITING_LIST_EXPIRED", message, email, phoneToSend);
+					
+					try (PreparedStatement deletePs = connection.prepareStatement("DELETE FROM waitinglist WHERE waiting_id = ?")) {
 						deletePs.setInt(1, waitingId);
 						deletePs.executeUpdate();
 					}
 				}
 			}
 
+			// 3. מציאת סלוטים "נעולים" - מישהו בסלוט הזה קיבל הודעה ועדיין חושב!
+			// אם הסלוט נעול, אנחנו עוצרים את התור ולא שולחים הודעות לאף אחד אחריו.
+			HashMap<String, Boolean> lockedSlots = new HashMap<>();
+			String activeNotificationsQuery = "SELECT DISTINCT park_name, visit_date, visit_time FROM waitinglist WHERE notified_time IS NOT NULL";
+			
+			try (PreparedStatement ps = connection.prepareStatement(activeNotificationsQuery); ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) {
+					String park = rs.getString("park_name");
+					LocalDate date = rs.getDate("visit_date").toLocalDate();
+					LocalTime time = rs.getTime("visit_time").toLocalTime();
+					lockedSlots.put(park + "_" + date + "_" + time, true); // סלוט זה חסום כרגע!
+				}
+			}
+
+			// 4. ניהול רשימת ההמתנה למי שעדיין לא קיבל הודעה (FIFO חמור ביותר)
 			String getWaiting = "SELECT * FROM waitinglist " + "WHERE notified_time IS NULL "
 					+ "AND TIMESTAMP(visit_date, visit_time) > CURRENT_TIMESTAMP "
-					+ "ORDER BY request_time ASC, waiting_id ASC";
+					+ "ORDER BY visit_date ASC, visit_time ASC, request_time ASC, waiting_id ASC";
 
 			try (PreparedStatement ps = connection.prepareStatement(getWaiting); ResultSet rs = ps.executeQuery()) {
-
-				HashSet<String> blockedSlots = new HashSet<>();
-
 				while (rs.next()) {
 					int wId = rs.getInt("waiting_id");
 					String visitorId = rs.getString("visitor_id");
@@ -117,16 +132,22 @@ public class WaitingListDAO {
 					LocalTime time = rs.getTime("visit_time").toLocalTime();
 					int visitors = rs.getInt("visitors_count");
 					String email = rs.getString("email");
+					String telephone = rs.getString("telephone");
 
 					String slotKey = park + "_" + date + "_" + time;
 
-					if (blockedSlots.contains(slotKey)) {
+					// בדיקה קריטית: אם הסלוט נעול, הבן אדם הזה לא רשאי לקבל הודעה! קופצים להבא.
+					if (lockedSlots.getOrDefault(slotKey, false)) {
 						continue;
 					}
 
-					if (bookingDAO.countVisitorsAt(park, date, time) + visitors <= parkDAO.getBookableCapacity(park)) {
-						String updateQ = "UPDATE waitinglist " + "SET notified_time = CURRENT_TIMESTAMP "
-								+ "WHERE waiting_id = ? " + "AND notified_time IS NULL";
+					int currentVis = bookingDAO.countVisitorsAt(park, date, time);
+					int max = parkDAO.getBookableCapacity(park);
+					int available = Math.max(0, max - currentVis);
+
+					// בודקים אם יש מקום לראשון בתור (והיחיד שאנחנו מתייחסים אליו עכשיו)
+					if (visitors <= available) {
+						String updateQ = "UPDATE waitinglist SET notified_time = CURRENT_TIMESTAMP WHERE waiting_id = ?";
 
 						try (PreparedStatement psNotify = connection.prepareStatement(updateQ)) {
 							psNotify.setInt(1, wId);
@@ -135,16 +156,19 @@ public class WaitingListDAO {
 								String message = "A place opened for your waiting-list request.\n" + "Park: " + park
 										+ "\n" + "Date: " + date + "\n" + "Time: " + time + "\n" + "Visitors: "
 										+ visitors + "\n"
-										+ "You have 1 hour to make the booking before it passes to the next visitor.";
+										+ "You have 2 hours to make the booking before it passes to the next visitor.";
 
-								notificationDAO.createNotification(visitorId, null, "WAITING_LIST_AVAILABLE", message,
-										email, visitorDAO.getVisitorPhone(visitorId));
+								String phoneToSend = (telephone != null && !telephone.isEmpty()) ? telephone : visitorDAO.getVisitorPhone(visitorId);
+								notificationDAO.createNotification(visitorId, null, "WAITING_LIST_AVAILABLE", message, email, phoneToSend);
 
-								blockedSlots.add(slotKey);
+								// נעלנו את הסלוט! אי אפשר לשלוח לאנשים הבאים בתור אחריו עד שהוא יחליט.
+								lockedSlots.put(slotKey, true);
 							}
 						}
 					} else {
-						blockedSlots.add(slotKey);
+						// אין כרגע מספיק מקום לראשון.
+						// ננעל את הסלוט כדי שהאנשים אחריו בתור (שאולי צריכים פחות מקום) לא יעקפו אותו!
+						lockedSlots.put(slotKey, true);
 					}
 				}
 			}
@@ -152,13 +176,14 @@ public class WaitingListDAO {
 			e.printStackTrace();
 		}
 	}
+
 	public ArrayList<Object> getWaitingListMessage(String visitorId) {
 		String query = "SELECT *, "
-				+ "60 - TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) AS mins_left "
+				+ "120 - TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) AS mins_left "
 				+ "FROM waitinglist "
 				+ "WHERE visitor_id = ? "
 				+ "AND notified_time IS NOT NULL "
-				+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) < 60 "
+				+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) < 120 "
 				+ "AND TIMESTAMP(visit_date, visit_time) > CURRENT_TIMESTAMP "
 				+ "ORDER BY notified_time ASC, waiting_id ASC "
 				+ "LIMIT 1";
@@ -181,15 +206,17 @@ public class WaitingListDAO {
 		}
 		return null;
 	}
+
 	public boolean payAndClaimWaitingList(int waitingId, int price) {
 		return payAndClaimWaitingListAndReturnCode(waitingId, price) != null;
 	}
+
 	public String payAndClaimWaitingListAndReturnCode(int waitingId, int price) {
 		try {
 			String getQ = "SELECT * FROM waitinglist "
 					+ "WHERE waiting_id = ? "
 					+ "AND notified_time IS NOT NULL "
-					+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) < 60 "
+					+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) < 120 "
 					+ "AND TIMESTAMP(visit_date, visit_time) > CURRENT_TIMESTAMP";
 
 			try (PreparedStatement ps = connection.prepareStatement(getQ)) {
@@ -205,6 +232,7 @@ public class WaitingListDAO {
 
 					b.setVisitorType(visitorType);
 					b.setEmail(rs.getString("email"));
+					b.setTelephone(rs.getString("telephone"));
 					b.setGuideGroup("Guide".equals(visitorType));
 					b.setSubscriber(visitorDAO.isVisitorSubscriber(b.getVisitorId()));
 					b.setPrice(price);
@@ -230,6 +258,7 @@ public class WaitingListDAO {
 
 		return null;
 	}
+
 	public void declineWaitingList(int waitingId) {
 		try (PreparedStatement ps = connection.prepareStatement(
 		        "DELETE FROM waitinglist WHERE waiting_id = ?")) {
@@ -239,11 +268,12 @@ public class WaitingListDAO {
 			e.printStackTrace();
 		}
 	}
+
 	public ArrayList<Booking> getWaitingEntriesAsBookings(String visitorId) {
 		ArrayList<Booking> list = new ArrayList<>();
 
 		String query = "SELECT waiting_id, visitor_id, park_name, visit_date, visit_time, visitors_count, "
-				+ "visitor_type, email, notified_time "
+				+ "visitor_type, email, telephone, notified_time "
 				+ "FROM waitinglist "
 				+ "WHERE visitor_id = ? "
 				+ "ORDER BY visit_date, visit_time";
@@ -267,6 +297,7 @@ public class WaitingListDAO {
 
 					b.setVisitorType(visitorType);
 					b.setEmail(rs.getString("email"));
+					b.setTelephone(rs.getString("telephone"));
 					b.setGuideGroup("Guide".equals(visitorType));
 					b.setSubscriber(visitorDAO.isVisitorSubscriber(visitorId));
 					b.setPrice(0);
@@ -281,6 +312,7 @@ public class WaitingListDAO {
 
 		return list;
 	}
+
 	public boolean removeWaitingEntry(int waitingId, String visitorId) {
 		String query = "DELETE FROM waitinglist "
 				+ "WHERE waiting_id = ? "

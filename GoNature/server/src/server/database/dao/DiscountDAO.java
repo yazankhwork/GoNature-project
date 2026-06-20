@@ -12,7 +12,8 @@ public class DiscountDAO {
 		this.connection = connection;
 		this.employeeDAO = employeeDAO;
 	}
-	public boolean createDiscountRequest(String parkName, String discountName, int discountPercent, String requestedBy) {
+
+	public boolean createDiscountRequest(String parkName, String discountName, int discountPercent, String startDate, String endDate, String requestedBy) {
 		if (!employeeDAO.isEmployeeRole(requestedBy, "PARK_MANAGER")) {
 			System.out.println("Only PARK_MANAGER can create discount requests.");
 			return false;
@@ -27,14 +28,16 @@ public class DiscountDAO {
 		}
 
 		String q = "INSERT INTO discount_requests "
-				+ "(park_name, requested_by, discount_name, discount_percent, status) "
-				+ "VALUES (?, ?, ?, ?, 'Pending')";
+				+ "(park_name, requested_by, discount_name, discount_percent, start_date, end_date, status) "
+				+ "VALUES (?, ?, ?, ?, ?, ?, 'Pending')";
 
 		try (PreparedStatement ps = connection.prepareStatement(q)) {
 			ps.setString(1, parkName);
 			ps.setString(2, requestedBy);
 			ps.setString(3, discountName.trim());
 			ps.setInt(4, discountPercent);
+			ps.setDate(5, java.sql.Date.valueOf(startDate));
+			ps.setDate(6, java.sql.Date.valueOf(endDate));
 
 			return ps.executeUpdate() > 0;
 
@@ -43,6 +46,7 @@ public class DiscountDAO {
 			return false;
 		}
 	}
+
 	public ArrayList<ArrayList<Object>> getPendingDiscountRequests() {
 		ArrayList<ArrayList<Object>> list = new ArrayList<>();
 
@@ -71,6 +75,7 @@ public class DiscountDAO {
 
 		return list;
 	}
+
 	public boolean approveDiscountRequest(int requestId, String decisionBy) {
 		if (!employeeDAO.isEmployeeRole(decisionBy, "DEPT_MANAGER")) {
 			System.out.println("Only DEPT_MANAGER can approve discount requests.");
@@ -92,6 +97,7 @@ public class DiscountDAO {
 			return false;
 		}
 	}
+
 	public boolean rejectDiscountRequest(int requestId, String decisionBy) {
 		if (!employeeDAO.isEmployeeRole(decisionBy, "DEPT_MANAGER")) {
 			System.out.println("Only DEPT_MANAGER can reject discount requests.");
@@ -113,11 +119,13 @@ public class DiscountDAO {
 			return false;
 		}
 	}
+
 	public int getApprovedDiscountPercent(String parkName) {
 		String q = "SELECT COALESCE(MAX(discount_percent), 0) AS discount_percent "
 				+ "FROM discount_requests "
 				+ "WHERE park_name = ? "
-				+ "AND status = 'Approved'";
+				+ "AND status = 'Approved' "
+				+ "AND CURRENT_DATE BETWEEN start_date AND end_date";
 
 		try (PreparedStatement ps = connection.prepareStatement(q)) {
 			ps.setString(1, parkName);

@@ -1,23 +1,15 @@
 package client.network;
 
 import java.io.IOException;
-
 import common.Message;
 
-/**
- * Holds ONE shared OCSF connection used by every client screen, so the client
- * connects once and reuses that connection for all commands (no socket per
- * request). All screens call ClientSession.send(...).
- */
 public class ClientSession {
 
 	private static GoNatureClient client;
-
-	/** Optional shared login info that any screen can read. */
 	public static String loggedInId = "";
 	public static String role = "";
+	public static String employeeParkName = "";
 
-	/** Opens (or re-opens) the single connection to the given host. */
 	public static synchronized void connect(String host, int port) throws IOException {
 		if (client != null && client.isConnected()) {
 			try {
@@ -29,10 +21,6 @@ public class ClientSession {
 		client.openConnection();
 	}
 
-	/**
-	 * Sends a request and returns the response. Never returns null: on any error it
-	 * returns a Message with command "ERROR" so screens never crash.
-	 */
 	public static synchronized Message send(Message request) {
 		try {
 			if (client == null || !client.isConnected()) {
@@ -44,7 +32,6 @@ public class ClientSession {
 		}
 	}
 
-	/** Closes the shared connection (used on logout/exit). */
 	public static synchronized void close() {
 		try {
 			if (client != null)
@@ -56,5 +43,18 @@ public class ClientSession {
 
 	public static boolean isConnected() {
 		return client != null && client.isConnected();
+	}
+
+	// --- OBSERVER DESIGN PATTERN: Static access to subscribe UI screens ---
+	public static void addObserver(INetworkObserver observer) {
+		if (client != null) {
+			client.attachObserver(observer);
+		}
+	}
+
+	public static void removeObserver(INetworkObserver observer) {
+		if (client != null) {
+			client.detachObserver(observer);
+		}
 	}
 }

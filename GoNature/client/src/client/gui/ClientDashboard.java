@@ -13,18 +13,20 @@ import javafx.stage.Stage;
 import common.Booking;
 import common.Message;
 import client.network.ClientSession;
+import client.network.INetworkObserver;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 
-public class ClientDashboard extends Application {
+public class ClientDashboard extends Application implements INetworkObserver {
 
 	public static String loggedInVisitorId = "";
 	public static String loggedInName = "";
 	public static boolean isAccountGuide = false;
 	public static boolean isSubscriberAccount = false;
 	public static String subscriptionNumber = "";
+	public static boolean isGuest = false;
 
 	private TableView<Booking> table = new TableView<>();
 	private ObservableList<Booking> dataList = FXCollections.observableArrayList();
@@ -35,6 +37,7 @@ public class ClientDashboard extends Application {
 	private TextField timeInput = new TextField("10:00");
 	private TextField visitorsInput = new TextField("1");
 	private TextField emailInput = new TextField();
+	private TextField phoneInput = new TextField(); 
 	private int selectedBookingId = -1;
 
 	private Label liveCapacityLabel = new Label(
@@ -45,6 +48,14 @@ public class ClientDashboard extends Application {
 	@Override
 	public void start(Stage primaryStage) {
 		primaryStage.setTitle("GoNature - Dashboard");
+
+		// OBSERVER PATTERN: Subscribe this screen to listen for live server events
+		ClientSession.addObserver(this);
+		
+		primaryStage.setOnCloseRequest(e -> {
+			// Unsubscribe when the window is closed to prevent memory leaks
+			ClientSession.removeObserver(this);
+		});
 
 		Label welcomeLabel = new Label("Welcome, " + loggedInName);
 		welcomeLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #27ae60;");
@@ -65,6 +76,9 @@ public class ClientDashboard extends Application {
 		emailInput.setPromptText("example@email.com");
 		emailInput.setStyle("-fx-border-color: #2ecc71; -fx-background-radius: 5px; -fx-border-radius: 5px;");
 		
+		phoneInput.setPromptText("Optional - 10 digits");
+		phoneInput.setStyle("-fx-border-color: #2ecc71; -fx-background-radius: 5px; -fx-border-radius: 5px;");
+		
 		Button btnShowPrices = new Button("View Pricing List");
 		btnShowPrices.setStyle(
 				"-fx-background-color: #34495e; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
@@ -77,6 +91,9 @@ public class ClientDashboard extends Application {
 
 		if (isSubscriberAccount) {
 			welcomeLabel.setText("Welcome, " + loggedInName + " (Sub #" + subscriptionNumber + ")");
+		}
+		if (isGuest) {
+			welcomeLabel.setText("Welcome, Guest (" + loggedInVisitorId + ")");
 		}
 
 		HBox rightAlign = new HBox(10, btnShowPrices, btnNotifications, btnLogout);
@@ -100,14 +117,16 @@ public class ClientDashboard extends Application {
 		visCol.setCellValueFactory(new PropertyValueFactory<>("visitorsCount"));
 		TableColumn<Booking, String> statusCol = new TableColumn<>("Status");
 		statusCol.setCellValueFactory(new PropertyValueFactory<>("status"));
-		TableColumn<Booking, Integer> priceCol = new TableColumn<>("Price Paid");
+		TableColumn<Booking, Integer> priceCol = new TableColumn<>("Ticket Price");
 		priceCol.setCellValueFactory(new PropertyValueFactory<>("price"));
 		TableColumn<Booking, String> typeCol = new TableColumn<>("Booking Type");
 		typeCol.setCellValueFactory(new PropertyValueFactory<>("visitorType"));
 		TableColumn<Booking, String> emailCol = new TableColumn<>("Email");
 		emailCol.setCellValueFactory(new PropertyValueFactory<>("email"));
+		TableColumn<Booking, String> phoneCol = new TableColumn<>("Phone");
+		phoneCol.setCellValueFactory(new PropertyValueFactory<>("telephone"));
 		
-		table.getColumns().addAll(idCol, parkCol, dateCol, timeCol, visCol, statusCol, priceCol, typeCol, emailCol);
+		table.getColumns().addAll(idCol, parkCol, dateCol, timeCol, visCol, statusCol, priceCol, typeCol, emailCol, phoneCol);
 		table.setItems(dataList);
 		table.setStyle("-fx-selection-bar: #a9dfbf; -fx-background-color: white; -fx-border-color: #27ae60;");
 
@@ -148,7 +167,9 @@ public class ClientDashboard extends Application {
 		inputGrid.add(visitorsLabel, 2, 1);
 		inputGrid.add(visitorsInput, 3, 1);
 		inputGrid.add(new Label("Email:"), 0, 2);
-		inputGrid.add(emailInput, 1, 2, 3, 1);
+		inputGrid.add(emailInput, 1, 2);
+		inputGrid.add(new Label("Phone:"), 2, 2);
+		inputGrid.add(phoneInput, 3, 2);
 
 		Button btnSelect = new Button("Select");
 		btnSelect.setStyle(
@@ -185,7 +206,10 @@ public class ClientDashboard extends Application {
 			responseLabel.setText("Availability status refreshed.");
 		});
 
-		btnLogout.setOnAction(e -> LogoutHelper.logout(primaryStage));
+		btnLogout.setOnAction(e -> {
+			ClientSession.removeObserver(this);
+			LogoutHelper.logout(primaryStage);
+		});
 
 		table.getSelectionModel().selectedItemProperty().addListener((obs, old, newSelection) -> {
 			if (newSelection != null) {
@@ -195,6 +219,7 @@ public class ClientDashboard extends Application {
 				timeInput.setText(newSelection.getVisitTime().toString());
 				visitorsInput.setText(String.valueOf(newSelection.getVisitorsCount()));
 				emailInput.setText(newSelection.getEmail() == null ? "" : newSelection.getEmail());
+				phoneInput.setText(newSelection.getTelephone() == null ? "" : newSelection.getTelephone());
 				chkIsGuide.setSelected(newSelection.isGuideGroup());
 				if (isAccountGuide)
 					chkIsGuide.setSelected("Guide".equals(newSelection.getVisitorType()));
@@ -239,6 +264,12 @@ public class ClientDashboard extends Application {
 				new Alert(Alert.AlertType.ERROR, "Enter a valid email address.").showAndWait();
 				return;
 			}
+			
+			String phone = phoneInput.getText().trim();
+			if (!phone.isEmpty() && !phone.matches("\\d{10}")) {
+				new Alert(Alert.AlertType.ERROR, "Phone must be exactly 10 digits!").showAndWait();
+				return;
+			}
 
 			boolean guideGroup = isAccountGuide && chkIsGuide.isSelected();
 
@@ -246,31 +277,42 @@ public class ClientDashboard extends Application {
 					visitors, "Pending");
 
 			b.setEmail(email);
+			b.setTelephone(phone);
 			b.setVisitorType(guideGroup ? "Guide" : "Regular Visitor");
 			b.setGuideGroup(guideGroup);
 			b.setSubscriber(isSubscriberAccount);
 
-			int approvedDiscount = getApprovedDiscountPercent(parkCombo.getValue());
-			int calculatedPrice = calculatePrice(visitors, b.getVisitorType(), isSubscriberAccount, true, true);
+			if (isGuest) {
+				b.setVisitorType("Regular Visitor");
+				b.setGuideGroup(false);
+				b.setSubscriber(false);
+			}
+
+			int approvedDiscount = isGuest ? 0 : getApprovedDiscountPercent(parkCombo.getValue());
+			boolean getsPrebookDiscount = !isGuest; 
+			int calculatedPrice = calculatePrice(visitors, b.getVisitorType(), b.isSubscriber(), getsPrebookDiscount, true);
 			calculatedPrice = applyApprovedParkDiscount(calculatedPrice, approvedDiscount);
 			b.setPrice(calculatedPrice);
+			
 			try {
-
 				Message response = ClientSession.send(new Message("CHECK_AVAILABILITY", b));
 
 				if ("OK".equals(response.getCommand())) {
 					Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
-							"Total price is " + calculatedPrice + " ILS (Discounts applied)."
+							"Total ticket price is " + calculatedPrice + " ILS" + (isGuest ? " (Full Price - No Discounts for Guests)." : " (Discounts applied).")
 									+ approvedDiscountText(approvedDiscount)
-									+ "\nProceed to payment?",
+									+ "\nConfirm Booking?",
 							ButtonType.YES, ButtonType.NO);
 					alert.showAndWait();
 					if (alert.getResult() == ButtonType.YES) {
 						sendCommandToServer("ADD_DATA", b);
-						loadDataFromServer();
+						if (!isGuest) loadDataFromServer();
 						checkLiveCapacity();
+						if (isGuest) {
+							new Alert(Alert.AlertType.INFORMATION, "Guest Booking Complete. Please save your Confirmation Code shown!").showAndWait();
+						}
 					} else
-						responseLabel.setText("Payment cancelled.");
+						responseLabel.setText("Booking cancelled.");
 				} else if ("PARTIAL_AVAILABILITY".equals(response.getCommand())) {
 					int availableSpots = (int) response.getData();
 					int waitlistSpots = visitors - availableSpots;
@@ -284,14 +326,13 @@ public class ClientDashboard extends Application {
 					splitAlert.showAndWait();
 
 					if (splitAlert.getResult() == splitBtn) {
-						int splitApprovedDiscount = getApprovedDiscountPercent(b.getParkName());
-						int splitPrice = calculatePrice(availableSpots, b.getVisitorType(), isSubscriberAccount, true,
-								true);
+						int splitApprovedDiscount = isGuest ? 0 : getApprovedDiscountPercent(b.getParkName());
+						int splitPrice = calculatePrice(availableSpots, b.getVisitorType(), b.isSubscriber(), getsPrebookDiscount, true);
 						splitPrice = applyApprovedParkDiscount(splitPrice, splitApprovedDiscount);
-						Alert payAlert = new Alert(Alert.AlertType.CONFIRMATION, "Price for " + availableSpots
+						Alert payAlert = new Alert(Alert.AlertType.CONFIRMATION, "Ticket price for " + availableSpots
 								+ " spots is " + splitPrice + " ILS."
 								+ approvedDiscountText(splitApprovedDiscount)
-								+ "\nProceed to payment?", ButtonType.YES,
+								+ "\nConfirm Booking?", ButtonType.YES,
 								ButtonType.NO);
 						payAlert.showAndWait();
 						if (payAlert.getResult() == ButtonType.YES) {
@@ -300,6 +341,7 @@ public class ClientDashboard extends Application {
 
 							confirmedB.setVisitorType(b.getVisitorType());
 							confirmedB.setEmail(b.getEmail());
+							confirmedB.setTelephone(b.getTelephone());
 							confirmedB.setGuideGroup(b.isGuideGroup());
 							confirmedB.setSubscriber(b.isSubscriber());
 							confirmedB.setPrice(splitPrice);
@@ -309,6 +351,7 @@ public class ClientDashboard extends Application {
 
 							waitlistB.setVisitorType(b.getVisitorType());
 							waitlistB.setEmail(b.getEmail());
+							waitlistB.setTelephone(b.getTelephone());
 							waitlistB.setGuideGroup(b.isGuideGroup());
 							waitlistB.setSubscriber(b.isSubscriber());
 							waitlistB.setPrice(0);
@@ -316,15 +359,15 @@ public class ClientDashboard extends Application {
 							splitData.add(confirmedB);
 							splitData.add(waitlistB);
 							sendCommandToServer("ADD_SPLIT_BOOKING", splitData);
-							loadDataFromServer();
+							if (!isGuest) loadDataFromServer();
 							checkLiveCapacity();
 						} else
-							responseLabel.setText("Payment cancelled.");
+							responseLabel.setText("Booking cancelled.");
 					} else if (splitAlert.getResult() == allWaitlistBtn) {
 						b.setStatus("Waiting List");
 						b.setPrice(0);
 						sendCommandToServer("ADD_DATA", b);
-						loadDataFromServer();
+						if (!isGuest) loadDataFromServer();
 						checkLiveCapacity();
 					}
 				} else {
@@ -336,7 +379,7 @@ public class ClientDashboard extends Application {
 						b.setStatus("Waiting List");
 						b.setPrice(0);
 						sendCommandToServer("ADD_DATA", b);
-						loadDataFromServer();
+						if (!isGuest) loadDataFromServer();
 						checkLiveCapacity();
 					}
 				}
@@ -381,6 +424,13 @@ public class ClientDashboard extends Application {
 				new Alert(Alert.AlertType.ERROR, "Enter a valid email address.").showAndWait();
 				return;
 			}
+			
+			String phone = phoneInput.getText().trim();
+			if (!phone.isEmpty() && !phone.matches("\\d{10}")) {
+				new Alert(Alert.AlertType.ERROR, "Phone must be exactly 10 digits!").showAndWait();
+				return;
+			}
+			
 			boolean guideGroup = isAccountGuide && chkIsGuide.isSelected();
 
 			String newType = guideGroup ? "Guide" : "Regular Visitor";
@@ -392,14 +442,14 @@ public class ClientDashboard extends Application {
 
 			if (diff > 0) {
 				Alert alertPay = new Alert(Alert.AlertType.CONFIRMATION,
-						"Additional payment required: " + diff + " ILS.\nProceed to payment?", ButtonType.YES,
+						"New ticket price is higher by: " + diff + " ILS.\nUpdate Booking?", ButtonType.YES,
 						ButtonType.NO);
 				alertPay.showAndWait();
 				if (alertPay.getResult() != ButtonType.YES)
 					return;
 			} else if (diff < 0) {
 				Alert alertRefund = new Alert(Alert.AlertType.CONFIRMATION,
-						"You will receive a refund of: " + Math.abs(diff) + " ILS.\nProceed?", ButtonType.YES,
+						"New ticket price is lower by: " + Math.abs(diff) + " ILS.\nUpdate Booking?", ButtonType.YES,
 						ButtonType.NO);
 				alertRefund.showAndWait();
 				if (alertRefund.getResult() != ButtonType.YES)
@@ -410,6 +460,7 @@ public class ClientDashboard extends Application {
 					parsedTime, visitors, "Pending");
 
 			b.setEmail(email);
+			b.setTelephone(phone);
 			b.setVisitorType(newType);
 			b.setGuideGroup(guideGroup);
 			b.setSubscriber(isSubscriberAccount);
@@ -433,18 +484,41 @@ public class ClientDashboard extends Application {
 			selectedBookingId = -1;
 		});
 
+		if (isGuest) {
+			btnShowPrices.setDisable(true);
+			btnNotifications.setDisable(true);
+			btnUpdate.setDisable(true);
+			btnCancel.setDisable(true);
+			table.setPlaceholder(new Label("Guests cannot view booking history."));
+		} else {
+			loadDataFromServer();
+			checkTomorrowBookings();
+			checkWaitingListInbox();
+			showRecentNotifications(false);
+		}
+
 		VBox layout = new VBox(15, topBar, table, openingHoursLabel, liveCapacityLabel, inputGrid, buttonBox,
 				responseLabel);
 		layout.setPadding(new Insets(20));
 		layout.setStyle("-fx-background-color: #f4fcf4;");
-		primaryStage.setScene(new Scene(layout, 750, 550));
+		primaryStage.setScene(new Scene(layout, 820, 550));
 		primaryStage.show();
 
-		loadDataFromServer();
 		checkLiveCapacity();
-		checkTomorrowBookings();
-		checkWaitingListInbox();
-		showRecentNotifications(false);
+	}
+
+	// --- OBSERVER PATTERN: Handles live push messages from the server ---
+	@Override
+	public void onMessageReceived(Message msg) {
+		if (msg.getCommand().equals("SERVER_PUSH_NOTIFICATION")) {
+			Alert alert = new Alert(Alert.AlertType.INFORMATION, msg.getData().toString());
+			alert.setTitle("Live Server Update");
+			alert.setHeaderText("New Notification from GoNature");
+			alert.show();
+			
+			// Refresh data in background when a push notification arrives!
+			loadDataFromServer();
+		}
 	}
 
 	public static int calculatePrice(int totalVisitors, String visitorType, boolean hasSubscription,
@@ -539,7 +613,7 @@ public class ClientDashboard extends Application {
 				int visitors = (int) notifData.get(5);
 				String wlVisitorType = (String) notifData.get(6);
 
-				ButtonType orderBtn = new ButtonType("Make Order (Pay)", ButtonBar.ButtonData.OK_DONE);
+				ButtonType orderBtn = new ButtonType("Claim Spot", ButtonBar.ButtonData.OK_DONE);
 				ButtonType declineBtn = new ButtonType("Cancel Request", ButtonBar.ButtonData.CANCEL_CLOSE);
 
 				Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
@@ -555,9 +629,9 @@ public class ClientDashboard extends Application {
 					int finalPrice = calculatePrice(visitors, wlVisitorType, isSubscriberAccount, true, true);
 					finalPrice = applyApprovedParkDiscount(finalPrice, approvedDiscount);
 					Alert payAlert = new Alert(Alert.AlertType.CONFIRMATION,
-							"Total price is " + finalPrice + " ILS (Discounts applied)."
+							"Total ticket price is " + finalPrice + " ILS (Discounts applied)."
 									+ approvedDiscountText(approvedDiscount)
-									+ "\nProceed to payment?",
+									+ "\nConfirm Booking?",
 							ButtonType.YES, ButtonType.NO);
 					payAlert.showAndWait();
 					if (payAlert.getResult() == ButtonType.YES) {
@@ -568,7 +642,7 @@ public class ClientDashboard extends Application {
 						loadDataFromServer();
 						checkLiveCapacity();
 					} else
-						responseLabel.setText("Payment skipped. Spot not claimed.");
+						responseLabel.setText("Action skipped. Spot not claimed.");
 				} else if (alert.getResult() == declineBtn) {
 					sendCommandToServer("DECLINE_WAITING_LIST", waitingId);
 					loadDataFromServer();
@@ -647,11 +721,15 @@ public class ClientDashboard extends Application {
 				new Alert(Alert.AlertType.INFORMATION, response.getData().toString(), ButtonType.OK).showAndWait();
 				if ("SUCCESS_PAID".equals(response.getCommand())) {
 					String toEmail = loggedInVisitorId + "@gonature.com";
+					String toPhone = null;
 
 					if (data instanceof Booking) {
 						Booking booking = (Booking) data;
 						if (booking.getEmail() != null && !booking.getEmail().trim().isEmpty()) {
 							toEmail = booking.getEmail().trim();
+						}
+						if (booking.getTelephone() != null && !booking.getTelephone().trim().isEmpty()) {
+							toPhone = booking.getTelephone().trim();
 						}
 					} else if (data instanceof ArrayList<?>) {
 						ArrayList<?> list = (ArrayList<?>) data;
@@ -660,10 +738,13 @@ public class ClientDashboard extends Application {
 							if (booking.getEmail() != null && !booking.getEmail().trim().isEmpty()) {
 								toEmail = booking.getEmail().trim();
 							}
+							if (booking.getTelephone() != null && !booking.getTelephone().trim().isEmpty()) {
+								toPhone = booking.getTelephone().trim();
+							}
 						}
 					}
 
-					NotificationSimulator.send(toEmail, null, "Booking Confirmation",
+					NotificationSimulator.send(toEmail, toPhone, "Booking Confirmation",
 							response.getData().toString());
 				}
 			}

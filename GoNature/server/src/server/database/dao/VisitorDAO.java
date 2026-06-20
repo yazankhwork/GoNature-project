@@ -9,50 +9,52 @@ public class VisitorDAO {
 	public VisitorDAO(Connection connection) {
 		this.connection = connection;
 	}
-	public String[] loginVisitor(String visitorId, String username) {
-		String query = "SELECT username, is_guide, full_name FROM visitors WHERE visitor_id = ?";
+
+	public String[] loginVisitor(String username, String password) {
+		String query = "SELECT visitor_id, is_guide, full_name FROM visitors WHERE username = ? AND password = ?";
 		try (PreparedStatement pstmt = connection.prepareStatement(query)) {
-			pstmt.setString(1, visitorId);
+			pstmt.setString(1, username);
+			pstmt.setString(2, password);
 			ResultSet rs = pstmt.executeQuery();
 			if (rs.next()) {
-				if (rs.getString("username") != null && rs.getString("username").equals(username)) {
-					String subNum = "NONE";
-					try (PreparedStatement psSub = connection
-							.prepareStatement("SELECT sub_id FROM subscriptions WHERE visitor_id = ?")) {
-						psSub.setString(1, visitorId);
-						ResultSet rsSub = psSub.executeQuery();
-						if (rsSub.next())
-							subNum = String.valueOf(rsSub.getInt("sub_id"));
-					}
-					return new String[] {
-							(rs.getInt("is_guide") == 1) ? "LOGIN_SUCCESS_GUIDE" : "LOGIN_SUCCESS_REGULAR",
-							rs.getString("full_name"), subNum };
-				} else
-					return new String[] { "WRONG_USERNAME", null, "NONE" };
+				String visitorId = rs.getString("visitor_id");
+				String subNum = "NONE";
+				try (PreparedStatement psSub = connection
+						.prepareStatement("SELECT sub_id FROM subscriptions WHERE visitor_id = ?")) {
+					psSub.setString(1, visitorId);
+					ResultSet rsSub = psSub.executeQuery();
+					if (rsSub.next())
+						subNum = String.valueOf(rsSub.getInt("sub_id"));
+				}
+				return new String[] {
+						(rs.getInt("is_guide") == 1) ? "LOGIN_SUCCESS_GUIDE" : "LOGIN_SUCCESS_REGULAR",
+						rs.getString("full_name"), subNum, visitorId };
 			} else
-				return new String[] { "USER_NOT_FOUND", null, "NONE" };
+				return new String[] { "AUTH_FAILED", null, "NONE", null };
 		} catch (Exception e) {
 			e.printStackTrace();
-			return new String[] { "ERROR", null, "NONE" };
+			return new String[] { "ERROR", null, "NONE", null };
 		}
 	}
-	public String registerVisitor(String visitorId, String username, boolean isGuide, String fullName) {
-		String checkQuery = "SELECT visitor_id FROM visitors WHERE visitor_id = ?";
+
+	public String registerVisitor(String visitorId, String username, String password, String email, String phone) {
+		String checkQuery = "SELECT visitor_id FROM visitors WHERE visitor_id = ? OR username = ?";
 		try (PreparedStatement checkStmt = connection.prepareStatement(checkQuery)) {
 			checkStmt.setString(1, visitorId);
+			checkStmt.setString(2, username);
 			if (checkStmt.executeQuery().next())
 				return "USER_ALREADY_EXISTS";
 		} catch (Exception e) {
 		}
 
-		String insertQuery = "INSERT INTO visitors (visitor_id, username, password, email, is_guide, full_name) VALUES (?, ?, ?, ?, ?, ?)";
+		String insertQuery = "INSERT INTO visitors (visitor_id, username, password, email, phone, is_guide, full_name) VALUES (?, ?, ?, ?, ?, 0, ?)";
 		try (PreparedStatement insertStmt = connection.prepareStatement(insertQuery)) {
 			insertStmt.setString(1, visitorId);
 			insertStmt.setString(2, username);
-			insertStmt.setString(3, "");
-			insertStmt.setString(4, username.replaceAll("\\s+", "").toLowerCase() + "@gonature.com");
-			insertStmt.setInt(5, isGuide ? 1 : 0);
-			insertStmt.setString(6, fullName);
+			insertStmt.setString(3, password);
+			insertStmt.setString(4, email);
+			insertStmt.setString(5, phone);
+			insertStmt.setString(6, username);
 			if (insertStmt.executeUpdate() > 0)
 				return "REGISTER_SUCCESS";
 		} catch (Exception e) {
@@ -60,39 +62,26 @@ public class VisitorDAO {
 		}
 		return "REGISTER_FAILED";
 	}
-	public String registerOrUpdateGuide(String visitorId, String password, String fullName) {
-		String checkQuery = "SELECT visitor_id FROM visitors WHERE visitor_id = ?";
-		boolean exists = false;
-		try (PreparedStatement checkStmt = connection.prepareStatement(checkQuery)) {
-			checkStmt.setString(1, visitorId);
-			exists = checkStmt.executeQuery().next();
-		} catch (Exception e) {
-		}
 
-		if (exists) {
-			String updateQuery = "UPDATE visitors SET is_guide = 1, password = ?, full_name = ? WHERE visitor_id = ?";
-			try (PreparedStatement updateStmt = connection.prepareStatement(updateQuery)) {
-				updateStmt.setString(1, password);
-				updateStmt.setString(2, fullName);
-				updateStmt.setString(3, visitorId);
-				if (updateStmt.executeUpdate() > 0)
-					return "UPDATE_SUCCESS";
-			} catch (Exception e) {
-			}
-		} else {
-			String insertQuery = "INSERT INTO visitors (visitor_id, password, email, is_guide, full_name) VALUES (?, ?, ?, 1, ?)";
-			try (PreparedStatement insertStmt = connection.prepareStatement(insertQuery)) {
-				insertStmt.setString(1, visitorId);
-				insertStmt.setString(2, password);
-				insertStmt.setString(3, fullName.replaceAll("\\s+", "").toLowerCase() + "@gonature.com");
-				insertStmt.setString(4, fullName);
-				if (insertStmt.executeUpdate() > 0)
-					return "REGISTER_SUCCESS";
-			} catch (Exception e) {
-			}
+	public String registerOrUpdateGuide(String visitorId, String password, String username) {
+		String updateQuery = "INSERT INTO visitors (visitor_id, username, password, email, is_guide, full_name) VALUES (?, ?, ?, ?, 1, ?) "
+				+ "ON DUPLICATE KEY UPDATE is_guide=1, password=?, username=?";
+		try (PreparedStatement pstmt = connection.prepareStatement(updateQuery)) {
+			pstmt.setString(1, visitorId);
+			pstmt.setString(2, username);
+			pstmt.setString(3, password);
+			pstmt.setString(4, username.replaceAll("\\s+", "").toLowerCase() + "@gonature.com");
+			pstmt.setString(5, username);
+			pstmt.setString(6, password);
+			pstmt.setString(7, username);
+			if (pstmt.executeUpdate() > 0)
+				return "REGISTER_SUCCESS";
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 		return "FAILED";
 	}
+
 	public boolean isVisitorGuide(String visitorId) {
 		String query = "SELECT is_guide FROM visitors WHERE visitor_id = ?";
 
@@ -110,6 +99,7 @@ public class VisitorDAO {
 
 		return false;
 	}
+
 	public String getVisitorPhone(String visitorId) {
 		String q = "SELECT phone FROM visitors WHERE visitor_id = ?";
 
@@ -127,6 +117,7 @@ public class VisitorDAO {
 
 		return null;
 	}
+
 	public int buySubscription(String visitorId, String firstName, String lastName, String phone, String email,
 			int familyMembers, String paymentMethod, String creditCard) {
 
@@ -168,6 +159,7 @@ public class VisitorDAO {
 
 		return -1;
 	}
+
 	public boolean isVisitorSubscriber(String visitorId) {
 		String query = "SELECT sub_id FROM subscriptions WHERE visitor_id = ?";
 
