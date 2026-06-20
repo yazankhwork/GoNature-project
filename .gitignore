@@ -1,0 +1,25 @@
+# JavaFX SDK - large binary files
+lib/javafx-sdk-*/lib/
+
+# Copilot session data
+copilot/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+target/
+*.class
+*.jar
+*.war
+
+# Dependencies
+node_modules/

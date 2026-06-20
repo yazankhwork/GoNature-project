@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+<<<<<<< HEAD
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER">
 		<attributes>
@@ -15,5 +16,27 @@
 	<classpathentry kind="lib" path="C:/Users/Admin/Downloads/openjfx-23.0.2_windows-x64_bin-sdk/javafx-sdk-23.0.2/lib/javafx.web.jar"/>
 	<classpathentry kind="lib" path="C:/Users/Admin/Downloads/openjfx-23.0.2_windows-x64_bin-sdk/javafx-sdk-23.0.2/lib/javafx-swt.jar"/>
 	<classpathentry kind="lib" path="lib/mysql-connector-j-9.5.0.jar"/>
+=======
+	<classpathentry excluding="src/" kind="src" path="client"/>
+	<classpathentry excluding="src/" kind="src" path="server"/>
+	<classpathentry kind="src" path="client/src"/>
+	<classpathentry kind="src" path="server/src"/>
+	<classpathentry kind="src" path="common/src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER">
+		<attributes>
+			<attribute name="module" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/JavaFX"/>
+	<classpathentry kind="lib" path="lib/mysql-connector-j-9.5.0.jar"/>
+	<classpathentry kind="lib" path="C:/Users/georg/OneDrive/Desktop/Y3/semB/javafx-sdk-21.0.11/lib/javafx.base.jar"/>
+	<classpathentry kind="lib" path="C:/Users/georg/OneDrive/Desktop/Y3/semB/javafx-sdk-21.0.11/lib/javafx.controls.jar"/>
+	<classpathentry kind="lib" path="C:/Users/georg/OneDrive/Desktop/Y3/semB/javafx-sdk-21.0.11/lib/javafx.fxml.jar"/>
+	<classpathentry kind="lib" path="C:/Users/georg/OneDrive/Desktop/Y3/semB/javafx-sdk-21.0.11/lib/javafx.graphics.jar"/>
+	<classpathentry kind="lib" path="C:/Users/georg/OneDrive/Desktop/Y3/semB/javafx-sdk-21.0.11/lib/javafx.media.jar"/>
+	<classpathentry kind="lib" path="C:/Users/georg/OneDrive/Desktop/Y3/semB/javafx-sdk-21.0.11/lib/javafx.swing.jar"/>
+	<classpathentry kind="lib" path="C:/Users/georg/OneDrive/Desktop/Y3/semB/javafx-sdk-21.0.11/lib/javafx.web.jar"/>
+	<classpathentry kind="lib" path="C:/Users/georg/OneDrive/Desktop/Y3/semB/javafx-sdk-21.0.11/lib/javafx-swt.jar"/>
+>>>>>>> branch 'main' of https://github.com/yazankhwork/GoNature-project.git
 	<classpathentry kind="output" path="bin"/>
 </classpath>
