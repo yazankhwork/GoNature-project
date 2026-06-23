@@ -1,8 +1,11 @@
-# JavaFX SDK - large binary files
-lib/javafx-sdk-*/lib/
+# Eclipse build output
+**/bin/
+bin/
 
-# Copilot session data
-copilot/
+# Java compiled/build files
+*.class
+*.jar
+*.war
 
 # IDE
 .idea/
@@ -15,11 +18,12 @@ copilot/
 .DS_Store
 Thumbs.db
 
-# Build
+# Other build/dependency folders
 target/
-*.class
-*.jar
-*.war
-
-# Dependencies
 node_modules/
+
+# Optional large JavaFX SDK
+lib/javafx-sdk-*/lib/
+
+# Copilot session data
+copilot/
