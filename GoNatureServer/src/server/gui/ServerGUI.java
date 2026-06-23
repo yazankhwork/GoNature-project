@@ -115,7 +115,5 @@ public class ServerGUI extends Application {
 		System.setErr(new PrintStream(out, true));
 	}
 
-	public static void main(String[] args) {
-		launch(args);
-	}
+
 }
