@@ -321,7 +321,82 @@ public class WorkerDashboard extends Application {
 		guideLayout.getChildren().addAll(guideHeader, guideGrid, btnRegGuide, guideResponse);
 		guideTab.setContent(guideLayout);
 
-		tabPane.getTabs().addAll(subTab, guideTab);
+		// כרטיסייה חדשה למשיכת פרופיל משתמש (User Info Search)
+		Tab infoTab = new Tab("User Profile Search");
+		infoTab.setClosable(false);
+
+		VBox infoLayout = new VBox(15);
+		infoLayout.setAlignment(Pos.CENTER);
+		infoLayout.setPadding(new Insets(20));
+		infoLayout.setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #c8e6c9; -fx-border-radius: 5px;");
+
+		TextField searchIdInput = new TextField();
+		searchIdInput.setPromptText("Enter ID Number (9 digits)");
+		searchIdInput.setStyle("-fx-border-color: #81c784; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-pref-width: 250px;");
+
+		Button btnSearch = new Button("Search Information");
+		btnSearch.setStyle("-fx-background-color: #f57c00; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
+
+		VBox resultBox = new VBox(10);
+		resultBox.setAlignment(Pos.CENTER_LEFT);
+		resultBox.setStyle("-fx-background-color: white; -fx-padding: 15px; -fx-border-color: #81c784; -fx-border-radius: 5px;");
+		Label lblResType = new Label("Type: -");
+		Label lblResName = new Label("Name: -");
+		Label lblResEmail = new Label("Email: -");
+		Label lblResPhone = new Label("Phone: -");
+		Label lblResExtra = new Label("Extra Info: -");
+
+		lblResType.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #1b5e20;");
+		lblResName.setStyle("-fx-font-size: 14px;");
+		lblResEmail.setStyle("-fx-font-size: 14px;");
+		lblResPhone.setStyle("-fx-font-size: 14px;");
+		lblResExtra.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #0288d1;");
+
+		resultBox.getChildren().addAll(lblResType, lblResName, lblResEmail, lblResPhone, lblResExtra);
+		resultBox.setVisible(false); // מוסתר עד שיש תוצאות
+
+		Label infoResponse = new Label();
+		infoResponse.setStyle("-fx-text-fill: #c62828; -fx-font-weight: bold;");
+
+		btnSearch.setOnAction(e -> {
+			String searchId = searchIdInput.getText().trim();
+			if (!searchId.matches("\\d{9}")) {
+				infoResponse.setText("ID must be exactly 9 digits!");
+				resultBox.setVisible(false);
+				return;
+			}
+			try {
+				@SuppressWarnings("unchecked")
+				Message response = ClientSession.send(new Message("GET_USER_INFO", searchId));
+				if ("USER_INFO_RESULT".equals(response.getCommand()) && response.getData() != null) {
+					ArrayList<String> data = (ArrayList<String>) response.getData();
+					lblResType.setText("Type: " + data.get(0));
+					lblResName.setText("Full Name: " + data.get(1));
+					lblResEmail.setText("Email: " + data.get(2));
+					lblResPhone.setText("Phone: " + data.get(3));
+					lblResExtra.setText("Extra Details: " + data.get(4));
+					resultBox.setVisible(true);
+					infoResponse.setText("");
+				} else {
+					infoResponse.setText("User not found in the database.");
+					resultBox.setVisible(false);
+				}
+			} catch (Exception ex) {
+				infoResponse.setText("Connection error.");
+			}
+		});
+
+		Label infoTitle = new Label("View Subscriber / Employee Information");
+		infoTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #1b5e20; -fx-font-size: 16px;");
+
+		HBox searchBox = new HBox(10, searchIdInput, btnSearch);
+		searchBox.setAlignment(Pos.CENTER);
+
+		infoLayout.getChildren().addAll(infoTitle, searchBox, infoResponse, resultBox);
+		infoTab.setContent(infoLayout);
+
+		// הוספת הכרטיסייה למסך
+		tabPane.getTabs().addAll(subTab, guideTab, infoTab);
 
 		mainLayout.getChildren().addAll(titleLabel, subTitle, tabPane, btnLogout);
 

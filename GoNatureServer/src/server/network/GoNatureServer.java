@@ -236,6 +236,11 @@ public class GoNatureServer extends AbstractServer {
 				response = new Message("CONNECTED", null);
 				break;
 			}
+			
+			case "GET_USER_INFO": {
+				response = new Message("USER_INFO_RESULT", dbController.getUserInfo((String) data));
+				break;
+			}
 
 			case "LOGIN": {
 				@SuppressWarnings("unchecked")
@@ -244,6 +249,32 @@ public class GoNatureServer extends AbstractServer {
 
 				if (loginRes[0].startsWith("LOGIN_SUCCESS")) {
 					String visitorId = loginRes[3];
+					if (loggedInUsers.containsKey(visitorId)) {
+						response = new Message("LOGIN_RESPONSE", new String[] { "ALREADY_LOGGED_IN", null, null, null });
+					} else {
+						loggedInUsers.put(visitorId, client);
+						client.setInfo("userId", visitorId);
+						response = new Message("LOGIN_RESPONSE", loginRes);
+					}
+				} else {
+					response = new Message("LOGIN_RESPONSE", loginRes);
+				}
+				break;
+			}
+			
+			case "VERIFY_GUIDE_PASS": {
+				@SuppressWarnings("unchecked")
+				ArrayList<String> vData = (ArrayList<String>) data;
+				boolean ok = dbController.verifyGuidePassword(vData.get(0), vData.get(1));
+				response = new Message(ok ? "VERIFY_SUCCESS" : "VERIFY_FAILED", null);
+				break;
+			}
+			
+			case "LOGIN_VISITOR_ID": {
+				String visitorId = (String) data;
+				String[] loginRes = dbController.loginVisitorById(visitorId);
+
+				if (loginRes[0].startsWith("LOGIN_SUCCESS")) {
 					if (loggedInUsers.containsKey(visitorId)) {
 						response = new Message("LOGIN_RESPONSE", new String[] { "ALREADY_LOGGED_IN", null, null, null });
 					} else {
@@ -298,9 +329,9 @@ public class GoNatureServer extends AbstractServer {
 						(String) subData.get(2),
 						(String) subData.get(3),
 						(String) subData.get(4),
-						(int) subData.get(5),   
+						(int) subData.get(5),
 						(String) subData.get(6),
-						(String) subData.get(7) 
+						(String) subData.get(7)
 				);
 
 				if (subId > 0) {
@@ -317,6 +348,21 @@ public class GoNatureServer extends AbstractServer {
 				String result = dbController.registerVisitor(regData.get(0), regData.get(1),
 						regData.get(2), regData.get(3), regData.get(4));
 				response = new Message("REGISTER_RESPONSE", result);
+				break;
+			}
+			
+			case "REGISTER_GUEST": {
+				String id = (String) data;
+				String res = dbController.registerGuest(id);
+				response = new Message("GUEST_REGISTER_RESPONSE", res);
+				break;
+			}
+
+			case "UPDATE_PROFILE": {
+				@SuppressWarnings("unchecked")
+				ArrayList<String> pData = (ArrayList<String>) data;
+				boolean ok = dbController.updateVisitorProfile(pData.get(0), pData.get(1), pData.get(2), pData.get(3));
+				response = new Message(ok ? "PROFILE_UPDATED" : "FAILED", null);
 				break;
 			}
 

@@ -1,6 +1,7 @@
 package server.dao;
 
 import java.sql.*;
+import java.util.ArrayList;
 /**
  * Handles visitor-related database operations in the GoNature system.
  *
@@ -22,6 +23,51 @@ public class VisitorDAO {
 	 */
 	public VisitorDAO(Connection connection) {
 		this.connection = connection;
+	}
+	/**
+	 * Retrieves full profile information for a visitor.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return list containing visitor profile details, or null if not found
+	 */
+	public ArrayList<String> getVisitorInfo(String visitorId) {
+		ArrayList<String> info = new ArrayList<>();
+		String q1 = "SELECT full_name, email, phone, is_guide FROM visitors WHERE visitor_id = ?";
+		try (PreparedStatement ps = connection.prepareStatement(q1)) {
+			ps.setString(1, visitorId);
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) {
+					String name = rs.getString("full_name");
+					String email = rs.getString("email");
+					String phone = rs.getString("phone");
+					boolean isGuide = rs.getInt("is_guide") == 1;
+
+					String type = isGuide ? "Certified Guide" : "Regular Visitor";
+					String extra = "No active family subscription";
+
+					String q2 = "SELECT sub_id, family_members FROM subscriptions WHERE visitor_id = ?";
+					try (PreparedStatement ps2 = connection.prepareStatement(q2)) {
+						ps2.setString(1, visitorId);
+						try (ResultSet rs2 = ps2.executeQuery()) {
+							if (rs2.next()) {
+								type = "Family Subscriber";
+								extra = "Sub #: " + rs2.getInt("sub_id") + " | Total Members: " + rs2.getInt("family_members");
+							}
+						}
+					}
+
+					info.add(type);
+					info.add(name);
+					info.add(email);
+					info.add(phone);
+					info.add(extra);
+					return info;
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 	/**
 	 * Authenticates a visitor using username and password.
@@ -51,6 +97,36 @@ public class VisitorDAO {
 						rs.getString("full_name"), subNum, visitorId };
 			} else
 				return new String[] { "AUTH_FAILED", null, "NONE", null };
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new String[] { "ERROR", null, "NONE", null };
+		}
+	}
+	/**
+	 * Authenticates a visitor using ONLY their visitor ID.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return login result data containing status, full name, subscription number and visitor ID
+	 */
+	public String[] loginVisitorById(String visitorId) {
+		String query = "SELECT is_guide, full_name FROM visitors WHERE visitor_id = ?";
+		try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+			pstmt.setString(1, visitorId);
+			ResultSet rs = pstmt.executeQuery();
+			if (rs.next()) {
+				String subNum = "NONE";
+				try (PreparedStatement psSub = connection
+						.prepareStatement("SELECT sub_id FROM subscriptions WHERE visitor_id = ?")) {
+					psSub.setString(1, visitorId);
+					ResultSet rsSub = psSub.executeQuery();
+					if (rsSub.next())
+						subNum = String.valueOf(rsSub.getInt("sub_id"));
+				}
+				return new String[] {
+						(rs.getInt("is_guide") == 1) ? "LOGIN_SUCCESS_GUIDE" : "LOGIN_SUCCESS_REGULAR",
+						rs.getString("full_name"), subNum, visitorId };
+			} else
+				return new String[] { "USER_NOT_FOUND", null, "NONE", null };
 		} catch (Exception e) {
 			e.printStackTrace();
 			return new String[] { "ERROR", null, "NONE", null };
@@ -92,6 +168,55 @@ public class VisitorDAO {
 		return "REGISTER_FAILED";
 	}
 	/**
+	 * Registers a guest visitor in the database so they can log in normally next time.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return ALREADY_EXISTS if found, REGISTERED if success, FAILED otherwise
+	 */
+	public String registerGuest(String visitorId) {
+		String checkQuery = "SELECT visitor_id FROM visitors WHERE visitor_id = ?";
+		try (PreparedStatement checkStmt = connection.prepareStatement(checkQuery)) {
+			checkStmt.setString(1, visitorId);
+			if (checkStmt.executeQuery().next()) {
+				return "ALREADY_EXISTS"; 
+			}
+		} catch (Exception e) {}
+
+		String insertQuery = "INSERT INTO visitors (visitor_id, username, password, email, phone, is_guide, full_name) VALUES (?, ?, '', '', '', 0, 'Guest')";
+		try (PreparedStatement insertStmt = connection.prepareStatement(insertQuery)) {
+			insertStmt.setString(1, visitorId);
+			insertStmt.setString(2, visitorId); 
+			if (insertStmt.executeUpdate() > 0) {
+				return "REGISTERED";
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return "FAILED";
+	}
+	/**
+	 * Updates the visitor's profile information.
+	 *
+	 * @param visitorId visitor identifier
+	 * @param fullName new full name
+	 * @param email new email
+	 * @param phone new phone
+	 * @return true if successful, false otherwise
+	 */
+	public boolean updateProfile(String visitorId, String fullName, String email, String phone) {
+		String query = "UPDATE visitors SET full_name = ?, email = ?, phone = ? WHERE visitor_id = ?";
+		try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+			pstmt.setString(1, fullName);
+			pstmt.setString(2, email);
+			pstmt.setString(3, phone);
+			pstmt.setString(4, visitorId);
+			return pstmt.executeUpdate() > 0;
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return false;
+	}
+	/**
 	 * Registers a visitor as a guide or updates an existing guide account.
 	 *
 	 * @param visitorId guide identifier
@@ -116,6 +241,26 @@ public class VisitorDAO {
 			e.printStackTrace();
 		}
 		return "FAILED";
+	}
+	/**
+	 * Verifies the password of a certified guide.
+	 *
+	 * @param visitorId guide identifier
+	 * @param password guide password
+	 * @return true if the password matches, false otherwise
+	 */
+	public boolean verifyGuidePassword(String visitorId, String password) {
+		String query = "SELECT visitor_id FROM visitors WHERE visitor_id = ? AND password = ? AND is_guide = 1";
+		try (PreparedStatement ps = connection.prepareStatement(query)) {
+			ps.setString(1, visitorId);
+			ps.setString(2, password);
+			try (ResultSet rs = ps.executeQuery()) {
+				return rs.next();
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return false;
 	}
 	/**
 	 * Checks whether a visitor is registered as a guide.

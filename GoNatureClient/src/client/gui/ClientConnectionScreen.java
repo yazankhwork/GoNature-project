@@ -7,6 +7,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -69,52 +70,102 @@ public class ClientConnectionScreen extends Application {
 				connectBtn, errorLabel);
 		Scene ipScene = new Scene(ipLayout, 350, 250);
 
-		VBox authLayout = new VBox(15);
-		authLayout.setPadding(new Insets(30));
+
+		VBox authLayout = new VBox();
 		authLayout.setAlignment(Pos.CENTER);
 		authLayout.setStyle("-fx-background-color: #e8f5e9;");
+
+		VBox card = new VBox(20);
+		card.setMaxWidth(450);
+		card.setAlignment(Pos.CENTER);
+		card.setPadding(new Insets(40, 30, 40, 30));
+		card.setStyle("-fx-background-color: white; "
+				+ "-fx-background-radius: 15px; "
+				+ "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.15), 15, 0, 0, 5);");
 
 		Label welcomeLabel = new Label("🌿 Welcome to GoNature 🌿");
 		welcomeLabel.setFont(Font.font("System", FontWeight.BOLD, 26));
 		welcomeLabel.setStyle("-fx-text-fill: #1b5e20;");
 
-		Label subLabel = new Label("Explore the outdoors with us");
-		subLabel.setStyle("-fx-text-fill: #388e3c; -fx-font-style: italic;");
+		Label subLabel = new Label("Please select your login type");
+		subLabel.setStyle("-fx-text-fill: #7f8c8d; -fx-font-size: 14px;");
 
-		TextField usernameInput = new TextField();
-		usernameInput.setPromptText("Username (Visitor) / ID Number (Employee)");
-		usernameInput.setStyle("-fx-border-color: #81c784; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-pref-height: 35px;");
+		HBox toggleBox = new HBox(10);
+		toggleBox.setAlignment(Pos.CENTER);
+		Button btnVisMode = new Button("Visitor");
+		Button btnEmpMode = new Button("Employee");
+
+		String activeStyle = "-fx-background-color: #2e7d32; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 20px; -fx-pref-width: 120px; -fx-pref-height: 35px;";
+		String inactiveStyle = "-fx-background-color: #ecf0f1; -fx-text-fill: #2c3e50; -fx-font-weight: bold; -fx-background-radius: 20px; -fx-pref-width: 120px; -fx-pref-height: 35px;";
+
+		btnVisMode.setStyle(activeStyle);
+		btnEmpMode.setStyle(inactiveStyle);
+		toggleBox.getChildren().addAll(btnVisMode, btnEmpMode);
+
+		StackPane formsPane = new StackPane();
+
+		VBox visForm = new VBox(15);
+		visForm.setAlignment(Pos.CENTER);
 		
-		PasswordField passwordInput = new PasswordField();
-		passwordInput.setPromptText("Password");
-		passwordInput.setStyle("-fx-border-color: #81c784; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-pref-height: 35px;");
+		TextField visIdField = new TextField();
+		visIdField.setPromptText("Enter your 9-digit ID");
+		visIdField.setStyle("-fx-border-color: #81c784; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-pref-height: 40px; -fx-font-size: 14px;");
 
-		Button guestBtn = new Button("Login as Guest");
-		guestBtn.setStyle(
-				"-fx-background-color: #ff9800; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px; -fx-pref-width: 140px; -fx-pref-height: 35px;");
-				
-		Button loginBtn = new Button("Visitor Login");
-		loginBtn.setStyle(
-				"-fx-background-color: #2e7d32; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px; -fx-pref-width: 140px; -fx-pref-height: 35px;");
-				
-		Button regBtn = new Button("New Visitor (Register)");
-		regBtn.setStyle(
-				"-fx-background-color: #4caf50; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px; -fx-pref-width: 180px; -fx-pref-height: 35px;");
+		Button btnVisLogin = new Button("Visitor Login");
+		btnVisLogin.setStyle("-fx-background-color: #2e7d32; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px; -fx-pref-width: 250px; -fx-pref-height: 40px; -fx-font-size: 14px;");
 
-		Button workerBtn = new Button("Service Rep / Admin");
-		workerBtn.setStyle(
-				"-fx-background-color: #5d4037; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px; -fx-pref-width: 180px; -fx-pref-height: 35px;");
+		Label lblOr = new Label("- OR -");
+		lblOr.setStyle("-fx-text-fill: #95a5a6; -fx-font-weight: bold;");
 
-		HBox buttonsBox = new HBox(15, guestBtn, loginBtn, regBtn);
-		buttonsBox.setAlignment(Pos.CENTER);
-		HBox workerBox = new HBox(workerBtn);
-		workerBox.setAlignment(Pos.CENTER);
-		
+		Button btnGuest = new Button("Continue as Guest");
+		btnGuest.setStyle("-fx-background-color: transparent; -fx-border-color: #2e7d32; -fx-text-fill: #2e7d32; -fx-font-weight: bold; -fx-border-radius: 5px; -fx-pref-width: 250px; -fx-pref-height: 40px; -fx-font-size: 14px;");
+
+		visForm.getChildren().addAll(new Label("Visitor Access"), visIdField, btnVisLogin, lblOr, btnGuest);
+
+		VBox empForm = new VBox(15);
+		empForm.setAlignment(Pos.CENTER);
+		empForm.setVisible(false); 
+
+		TextField empUserField = new TextField();
+		empUserField.setPromptText("Employee Username / ID");
+		empUserField.setStyle("-fx-border-color: #0288d1; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-pref-height: 40px; -fx-font-size: 14px;");
+
+		PasswordField empPassField = new PasswordField();
+		empPassField.setPromptText("Password");
+		empPassField.setStyle("-fx-border-color: #0288d1; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-pref-height: 40px; -fx-font-size: 14px;");
+
+		Button btnEmpLogin = new Button("Employee Login");
+		btnEmpLogin.setStyle("-fx-background-color: #0288d1; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px; -fx-pref-width: 250px; -fx-pref-height: 40px; -fx-font-size: 14px;");
+
+		empForm.getChildren().addAll(new Label("Staff & Management Access"), empUserField, empPassField, btnEmpLogin);
+
+		formsPane.getChildren().addAll(visForm, empForm);
+
 		Label statusLabel = new Label();
 		statusLabel.setStyle("-fx-text-fill: #d32f2f; -fx-font-weight: bold; -fx-font-size: 14px;");
 
-		authLayout.getChildren().addAll(welcomeLabel, subLabel, usernameInput, passwordInput, buttonsBox, workerBox, statusLabel);
-		Scene authScene = new Scene(authLayout, 550, 450);
+		card.getChildren().addAll(welcomeLabel, subLabel, toggleBox, new Separator(), formsPane, statusLabel);
+		authLayout.getChildren().add(card);
+		
+		Scene authScene = new Scene(authLayout, 650, 550);
+
+
+		btnVisMode.setOnAction(e -> {
+			visForm.setVisible(true);
+			empForm.setVisible(false);
+			btnVisMode.setStyle(activeStyle);
+			btnEmpMode.setStyle(inactiveStyle);
+			statusLabel.setText("");
+		});
+
+		btnEmpMode.setOnAction(e -> {
+			visForm.setVisible(false);
+			empForm.setVisible(true);
+			btnVisMode.setStyle(inactiveStyle);
+			btnEmpMode.setStyle(activeStyle);
+			statusLabel.setText("");
+		});
+
 
 		connectBtn.setOnAction(e -> {
 			String ip = ipInput.getText().trim();
@@ -132,176 +183,151 @@ public class ClientConnectionScreen extends Application {
 			}
 		});
 
-		guestBtn.setOnAction(e -> {
-			TextInputDialog dialog = new TextInputDialog();
-			dialog.setTitle("Guest Login");
-			dialog.setHeaderText("Welcome Guest!\nPlease enter your ID to continue.");
-			dialog.setContentText("ID Number (9 digits):");
 
-			Optional<String> result = dialog.showAndWait();
-			result.ifPresent(id -> {
-				id = id.trim();
-				if (id.isEmpty() || !id.matches("\\d{9}")) {
-					statusLabel.setText("Valid 9-digit ID required for Guest Login!");
-					return;
-				}
-				ClientDashboard.loggedInVisitorId = id;
-				ClientDashboard.loggedInName = "Guest";
-				ClientDashboard.isAccountGuide = false;
-				ClientDashboard.isSubscriberAccount = false;
-				ClientDashboard.isGuest = true;
-				ClientDashboard.familyMembers = 1;
-				
-				primaryStage.close();
-				new ClientDashboard().start(new Stage());
-			});
-		});
-
-		loginBtn.setOnAction(e -> {
-			String username = usernameInput.getText().trim();
-			String password = passwordInput.getText().trim();
-
-			if (username.isEmpty() || password.isEmpty()) {
-				statusLabel.setText("Username and Password required for Visitor Login!");
+		btnGuest.setOnAction(e -> {
+			String id = visIdField.getText().trim();
+			if (id.isEmpty() || !id.matches("\\d{9}")) {
+				statusLabel.setText("Valid 9-digit ID required for Guest Login!");
 				return;
 			}
-
+			
 			try {
-				ArrayList<String> loginData = new ArrayList<>();
-				loginData.add(username);
-				loginData.add(password);
-				Message resMsg = ClientSession.send(new Message("LOGIN", loginData));
-				String res = resMsg.getCommand();
-				
-				if ("LOGIN_RESPONSE".equals(res)) {
-					String[] dbData = (String[]) resMsg.getData();
-					
-					if ("ALREADY_LOGGED_IN".equals(dbData[0])) {
-						statusLabel.setText("User is already logged in from another device!");
-						return;
-					}
-					
-					if ("LOGIN_SUCCESS_GUIDE".equals(dbData[0]) || "LOGIN_SUCCESS_REGULAR".equals(dbData[0])) {
-						String dbFullName = dbData[1];
-						String dbVisitorId = dbData[3]; 
-						
-						ClientDashboard.loggedInVisitorId = dbVisitorId;
-						ClientDashboard.loggedInName = dbFullName;
-						ClientDashboard.isAccountGuide = "LOGIN_SUCCESS_GUIDE".equals(dbData[0]);
-						ClientDashboard.isGuest = false;
+				Message resp = ClientSession.send(new Message("REGISTER_GUEST", id));
+				String serverStatus = (String) resp.getData();
 
-						String subNum = dbData[2];
-						if (!"NONE".equals(subNum)) {
-							ClientDashboard.isSubscriberAccount = true;
-							ClientDashboard.subscriptionNumber = subNum;
-							ClientDashboard.familyMembers = Integer.parseInt(dbData[4]);
-						} else {
-							ClientDashboard.isSubscriberAccount = false;
-							ClientDashboard.familyMembers = 1;
-						}
-
-						primaryStage.close();
-						new ClientDashboard().start(new Stage());
-					} else if ("WRONG_USERNAME".equals(dbData[0]) || "AUTH_FAILED".equals(dbData[0])) {
-						statusLabel.setText("Error: Wrong Username or Password!");
-					} else {
-						statusLabel.setText("User not found! Click 'New Visitor'.");
-					}
+				if ("ALREADY_EXISTS".equals(serverStatus)) {
+					statusLabel.setText("ID already registered! Please use 'Visitor Login'.");
+					return;
+				} else if ("REGISTERED".equals(serverStatus)) {
+					ClientDashboard.loggedInVisitorId = id;
+					ClientDashboard.loggedInName = "Guest";
+					ClientDashboard.isGuest = true;
+					ClientDashboard.isAccountGuide = false;
+					ClientDashboard.isSubscriberAccount = false;
+					ClientDashboard.subscriptionNumber = "NONE";
+					ClientDashboard.familyMembers = 1;
+					
+					primaryStage.close();
+					new ClientDashboard().start(new Stage());
+				} else {
+					statusLabel.setText("Failed to register guest in system.");
 				}
 			} catch (Exception ex) {
 				statusLabel.setText("Server connection lost.");
 			}
 		});
 
-		regBtn.setOnAction(e -> {
-			String username = usernameInput.getText().trim();
-			String password = passwordInput.getText().trim();
 
-			if (username.isEmpty() || password.isEmpty()) {
-				statusLabel.setText("Enter your desired Username & Password first, then click Register.");
-				return;
-			}
-			if (!username.matches("^[a-zA-Z0-9_\\s]+$")) {
-				statusLabel.setText("Username can only contain letters, numbers, and spaces.");
+		btnVisLogin.setOnAction(e -> {
+			String id = visIdField.getText().trim();
+			if (!id.matches("\\d{9}")) {
+				statusLabel.setText("Valid 9-digit ID required for Visitor Login!");
 				return;
 			}
 
-			Dialog<String[]> dialog = new Dialog<>();
-			dialog.setTitle("New Visitor Registration");
-			dialog.setHeaderText("Welcome " + username + "!\nPlease provide your ID and Email to complete registration.");
-
-			ButtonType registerButtonType = new ButtonType("Register", ButtonBar.ButtonData.OK_DONE);
-			dialog.getDialogPane().getButtonTypes().addAll(registerButtonType, ButtonType.CANCEL);
-
-			GridPane grid = new GridPane();
-			grid.setHgap(10);
-			grid.setVgap(10);
-			grid.setPadding(new Insets(20, 20, 10, 10));
-
-			TextField idField = new TextField();
-			idField.setPromptText("9-digit ID");
-			TextField emailField = new TextField();
-			emailField.setPromptText("example@email.com");
-
-			grid.add(new Label("ID Number:"), 0, 0);
-			grid.add(idField, 1, 0);
-			grid.add(new Label("Email:"), 0, 1);
-			grid.add(emailField, 1, 1);
-
-			dialog.getDialogPane().setContent(grid);
-
-			dialog.setResultConverter(dialogButton -> {
-				if (dialogButton == registerButtonType) {
-					return new String[] { idField.getText().trim(), emailField.getText().trim() };
-				}
-				return null;
-			});
-
-			Optional<String[]> result = dialog.showAndWait();
-			result.ifPresent(res -> {
-				String id = res[0];
-				String email = res[1];
-
-				if (!id.matches("\\d{9}")) {
-					statusLabel.setText("Registration Failed: ID must be exactly 9 digits.");
-					return;
-				}
-				if (email.isEmpty() || !email.contains("@")) {
-					statusLabel.setText("Registration Failed: Valid email is required.");
-					return;
-				}
-
-				try {
-					ArrayList<String> regData = new ArrayList<>();
-					regData.add(id);
-					regData.add(username);
-					regData.add(password);
-					regData.add(email);
-					regData.add(""); 
-
-					Message regResp = ClientSession.send(new Message("REGISTER", regData));
-					String serverRes = regResp.getCommand();
+			try {
+				Message response = ClientSession.send(new Message("GET_USER_INFO", id));
+				
+				if ("USER_INFO_RESULT".equals(response.getCommand()) && response.getData() != null) {
+					@SuppressWarnings("unchecked")
+					ArrayList<String> data = (ArrayList<String>) response.getData();
+					String type = data.get(0);
+					String name = data.get(1);
 					
-					if ("REGISTER_RESPONSE".equals(serverRes)) {
-						if ("REGISTER_SUCCESS".equals(regResp.getData().toString())) {
-							statusLabel.setStyle("-fx-text-fill: #2e7d32;");
-							statusLabel.setText("Registered successfully! You can now log in.");
+					if (type.equals("Employee")) {
+						statusLabel.setText("This ID belongs to an employee. Use Employee Login.");
+						return;
+					}
+					
+					// --- Guide Password Verification Logic ---
+					if (type.equals("Certified Guide")) {
+						Dialog<String> pwdDialog = new Dialog<>();
+						pwdDialog.setTitle("Guide Authentication");
+						pwdDialog.setHeaderText("Hello " + name + ",\nAs a Certified Guide, please enter your password:");
+						
+						PasswordField pwdField = new PasswordField();
+						pwdField.setPromptText("Password");
+						pwdField.setStyle("-fx-border-color: #81c784; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-pref-height: 35px;");
+						
+						VBox vbox = new VBox(pwdField);
+						vbox.setPadding(new Insets(10, 0, 0, 0));
+						pwdDialog.getDialogPane().setContent(vbox);
+						
+						ButtonType loginBtnType = new ButtonType("Login", ButtonBar.ButtonData.OK_DONE);
+						pwdDialog.getDialogPane().getButtonTypes().addAll(loginBtnType, ButtonType.CANCEL);
+						
+						pwdDialog.setResultConverter(b -> {
+							if (b == loginBtnType) {
+								return pwdField.getText();
+							}
+							return null;
+						});
+						
+						Optional<String> pwdResult = pwdDialog.showAndWait();
+						if (pwdResult.isPresent()) {
+							String pass = pwdResult.get().trim();
+							if (pass.isEmpty()) {
+								statusLabel.setText("Password cannot be empty.");
+								return;
+							}
+							
+							ArrayList<String> verifyData = new ArrayList<>();
+							verifyData.add(id);
+							verifyData.add(pass);
+							
+							Message verifyResp = ClientSession.send(new Message("VERIFY_GUIDE_PASS", verifyData));
+							if (!"VERIFY_SUCCESS".equals(verifyResp.getCommand())) {
+								statusLabel.setText("Incorrect password for Guide.");
+								return; // Halt login process
+							}
 						} else {
-							statusLabel.setText("Registration Failed: ID or Username already exists.");
+							// User cancelled the password dialog
+							return; 
 						}
 					}
-				} catch (Exception ex) {
-					statusLabel.setText("Server connection lost.");
+					// --- End Guide Logic ---
+
+					ClientDashboard.loggedInVisitorId = id;
+					ClientDashboard.loggedInName = name;
+					ClientDashboard.isGuest = false;
+					ClientDashboard.isAccountGuide = "Certified Guide".equals(type);
+
+					if ("Family Subscriber".equals(type)) {
+						ClientDashboard.isSubscriberAccount = true;
+						String extra = data.get(4); 
+						try {
+							String[] parts = extra.split("\\|");
+							String subPart = parts[0].replaceAll("[^0-9]", "");
+							String memPart = parts[1].replaceAll("[^0-9]", "");
+							ClientDashboard.subscriptionNumber = subPart;
+							ClientDashboard.familyMembers = Integer.parseInt(memPart);
+						} catch (Exception ex) {
+							ClientDashboard.subscriptionNumber = "0";
+							ClientDashboard.familyMembers = 1;
+						}
+					} else {
+						ClientDashboard.isSubscriberAccount = false;
+						ClientDashboard.subscriptionNumber = "NONE";
+						ClientDashboard.familyMembers = 1;
+					}
+
+					primaryStage.close();
+					new ClientDashboard().start(new Stage());
+				} else {
+					statusLabel.setText("ID not found. Please 'Continue as Guest' to register automatically.");
 				}
-			});
+			} catch (Exception ex) {
+				statusLabel.setText("Server connection lost.");
+			}
 		});
 
-		workerBtn.setOnAction(e -> {
-			String empId = usernameInput.getText().trim();
-			String pass = passwordInput.getText().trim();
+
+		btnEmpLogin.setOnAction(e -> {
+			String empId = empUserField.getText().trim();
+			String pass = empPassField.getText().trim();
 
 			if (empId.isEmpty() || pass.isEmpty()) {
-				statusLabel.setText("Enter Employee ID and Password to login!");
+				statusLabel.setText("Enter Username/ID and Password to login!");
 				return;
 			}
 

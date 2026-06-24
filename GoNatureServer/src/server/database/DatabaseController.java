@@ -92,6 +92,50 @@ public class DatabaseController {
 		}
 	}
 	/**
+	 * Retrieves profile information for a user (visitor or employee).
+	 *
+	 * @param userId user identifier
+	 * @return list of user info strings, or null if not found
+	 */
+	public ArrayList<String> getUserInfo(String userId) {
+		ArrayList<String> info = visitorDAO.getVisitorInfo(userId);
+		if (info != null) {
+			return info;
+		}
+		return employeeDAO.getEmployeeInfo(userId);
+	}
+	/**
+	 * Registers a guest visitor in the database.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return String status: ALREADY_EXISTS, REGISTERED, or FAILED
+	 */
+	public String registerGuest(String visitorId) {
+		return visitorDAO.registerGuest(visitorId);
+	}
+	/**
+	 * Updates a visitor's profile information.
+	 *
+	 * @param visitorId visitor identifier
+	 * @param fullName new full name
+	 * @param email new email
+	 * @param phone new phone
+	 * @return true if successful, false otherwise
+	 */
+	public boolean updateVisitorProfile(String visitorId, String fullName, String email, String phone) {
+		return visitorDAO.updateProfile(visitorId, fullName, email, phone);
+	}
+	/**
+	 * Verifies the password of a certified guide.
+	 *
+	 * @param visitorId guide identifier
+	 * @param password guide password
+	 * @return true if password matches, false otherwise
+	 */
+	public boolean verifyGuidePassword(String visitorId, String password) {
+		return visitorDAO.verifyGuidePassword(visitorId, password);
+	}
+	/**
 	 * Counts the number of visitors scheduled for a specific park, date and time.
 	 *
 	 * @param parkName park name
@@ -111,6 +155,14 @@ public class DatabaseController {
 	 */
 	public String[] loginVisitor(String username, String password) {
 		return visitorDAO.loginVisitor(username, password);
+	}
+	/**
+	 * Authenticates a visitor using ONLY their ID (No password required).
+	 * * @param visitorId visitor identifier
+	 * @return login result data
+	 */
+	public String[] loginVisitorById(String visitorId) {
+		return visitorDAO.loginVisitorById(visitorId);
 	}
 	/**
 	 * Authenticates an employee using employee ID and password.

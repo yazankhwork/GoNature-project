@@ -113,6 +113,10 @@ public class ReportsScreen extends Application {
 		cancelBtn.setStyle("-fx-background-color: #f57c00; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
 		cancelBtn.setOnAction(e -> showCancellationsReport());
 		
+		Button usageBtn = new Button("Park Usage Report");
+		usageBtn.setStyle("-fx-background-color: #00897b; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
+		usageBtn.setOnAction(e -> showParkNotFullReport());
+		
 		Button requestsBtn = new Button("Park Change Requests");
 		requestsBtn.setStyle("-fx-background-color: #2e7d32; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
 		requestsBtn.setOnAction(e -> showParkChangeRequests());
@@ -128,7 +132,7 @@ public class ReportsScreen extends Application {
 		HBox combos = new HBox(10, new Label("Park:"), parkCombo, new Label("Month:"), monthCombo, new Label("Year:"), yearCombo, allParksCancelCheck);
 		combos.setPadding(new Insets(5, 0, 5, 0));
 		
-		HBox controls = new HBox(10, visitsBtn, detailedVisitsBtn, cancelBtn, requestsBtn, discountRequestsBtn, logoutBtn);
+		HBox controls = new HBox(10, visitsBtn, usageBtn, detailedVisitsBtn, cancelBtn, requestsBtn, discountRequestsBtn, logoutBtn);
 		controls.setPadding(new Insets(5, 0, 5, 0));
 
 		HBox liveCapacityRow = new HBox(10, liveCapacityLabel);
@@ -137,7 +141,7 @@ public class ReportsScreen extends Application {
 		VBox layout = new VBox(15, titleLabel, combos, controls, liveCapacityRow, chartHolder);
 		layout.setPadding(new Insets(20));
 		layout.setStyle("-fx-background-color: #e8f5e9;");
-		stage.setScene(new Scene(layout, 1050, 650));
+		stage.setScene(new Scene(layout, 1150, 750)); // הוגדל משמעותית כדי שהגרפים ייראו קטלניים!
 		stage.show();
 		
 		updateLiveCapacity();
@@ -226,11 +230,12 @@ public class ReportsScreen extends Application {
 			CategoryAxis x = new CategoryAxis();
 			NumberAxis y = new NumberAxis();
 			x.setLabel("Visitor Type");
-			y.setLabel("Visitors");
+			y.setLabel("Total Visitors");
 
 			BarChart<String, Number> chart = new BarChart<>(x, y);
-			chart.setTitle(
-					"Visits - " + parkCombo.getValue() + " " + monthCombo.getValue() + "/" + yearCombo.getValue());
+			chart.setTitle("Total Visits by Type - " + parkCombo.getValue() + " " + monthCombo.getValue() + "/" + yearCombo.getValue());
+			chart.setPrefSize(1000, 500); // גרף ענק
+			chart.setStyle("-fx-font-size: 14px;");
 
 			XYChart.Series<String, Number> series = new XYChart.Series<>();
 			series.setName("Realized visitors");
@@ -292,11 +297,59 @@ public class ReportsScreen extends Application {
 			TextArea area = new TextArea(sb.toString());
 			area.setEditable(false);
 			area.setWrapText(false);
-			area.setPrefWidth(850);
-			area.setPrefHeight(400);
-			area.setStyle("-fx-border-color: #81c784; -fx-border-radius: 5px;");
+			area.setPrefWidth(1000);
+			area.setPrefHeight(500);
+			area.setStyle("-fx-border-color: #81c784; -fx-border-radius: 5px; -fx-font-family: Consolas;");
 
 			chartHolder.getChildren().setAll(area);
+
+		} catch (Exception ex) {
+			chartHolder.getChildren().setAll(new Label("Connection error."));
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	private void showParkNotFullReport() {
+		try {
+			Message resp = request(new Message("REPORT_NOT_FULL", filter()));
+			if (!"REPORT_NOT_FULL_RESULT".equals(resp.getCommand())) {
+				chartHolder.getChildren().setAll(new Label("Could not load Park Usage report."));
+				return;
+			}
+			ArrayList<ArrayList<Object>> rows = (ArrayList<ArrayList<Object>>) resp.getData();
+
+			CategoryAxis x = new CategoryAxis();
+			NumberAxis y = new NumberAxis();
+			x.setLabel("Day of the Month");
+			y.setLabel("Value (Hours / Places)");
+
+			BarChart<String, Number> chart = new BarChart<>(x, y);
+			chart.setTitle("Park Usage: Free Places at Peak & Not-Full Hours - " + parkCombo.getValue());
+			chart.setPrefSize(1000, 500); // גרף ענק וקטלני
+			chart.setStyle("-fx-font-size: 14px;");
+
+			XYChart.Series<String, Number> freePlacesSeries = new XYChart.Series<>();
+			freePlacesSeries.setName("Free Places During Peak Time");
+
+			XYChart.Series<String, Number> notFullHoursSeries = new XYChart.Series<>();
+			notFullHoursSeries.setName("Total Not-Full Hours");
+
+			if (rows != null && !rows.isEmpty()) {
+				for (ArrayList<Object> row : rows) {
+					String fullDate = String.valueOf(row.get(0));
+					String dayOnly = fullDate.substring(fullDate.lastIndexOf('-') + 1); // Extracting just the day
+					int freePlaces = (int) row.get(3);
+					int notFullHours = (int) row.get(4);
+					
+					freePlacesSeries.getData().add(new XYChart.Data<>(dayOnly, freePlaces));
+					notFullHoursSeries.getData().add(new XYChart.Data<>(dayOnly, notFullHours));
+				}
+			} else {
+				freePlacesSeries.getData().add(new XYChart.Data<>("No Data", 0));
+			}
+
+			chart.getData().addAll(freePlacesSeries, notFullHoursSeries);
+			chartHolder.getChildren().setAll(chart);
 
 		} catch (Exception ex) {
 			chartHolder.getChildren().setAll(new Label("Connection error."));
@@ -324,20 +377,22 @@ public class ReportsScreen extends Application {
 
 			CategoryAxis x = new CategoryAxis();
 			NumberAxis y = new NumberAxis();
-			x.setLabel("Day");
-			y.setLabel("Bookings");
+			x.setLabel("Day of Month");
+			y.setLabel("Number of Bookings");
 
 			BarChart<String, Number> chart = new BarChart<>(x, y);
 
 			String parkTitle = allParksCancelCheck.isSelected() ? "All Parks" : parkCombo.getValue();
-			chart.setTitle("Daily Cancelled / No-show - " + parkTitle + " "
+			chart.setTitle("Daily Cancelled & No-show Bookings - " + parkTitle + " "
 					+ monthCombo.getValue() + "/" + yearCombo.getValue());
+			chart.setPrefSize(1000, 480); // גרף ענק
+			chart.setStyle("-fx-font-size: 14px;");
 
 			XYChart.Series<String, Number> cancelledSeries = new XYChart.Series<>();
-			cancelledSeries.setName("Cancelled");
+			cancelledSeries.setName("Cancelled Bookings");
 
 			XYChart.Series<String, Number> noShowSeries = new XYChart.Series<>();
-			noShowSeries.setName("No-show");
+			noShowSeries.setName("No-Show (Did Not Arrive)");
 
 			if (dailyRows == null || dailyRows.isEmpty()) {
 				cancelledSeries.getData().add(new XYChart.Data<>("No data", 0));
@@ -355,10 +410,10 @@ public class ReportsScreen extends Application {
 
 			chart.getData().setAll(cancelledSeries, noShowSeries);
 
-			Label summary = new Label("Total cancelled: " + totalCancelled
-					+ "    Total no-show: " + totalNoShow
-					+ "    Average cancelled per day: " + String.format("%.2f", averageCancelledPerDay));
-			summary.setStyle("-fx-font-weight: bold; -fx-text-fill: #1b5e20; -fx-font-size: 14px;");
+			Label summary = new Label("Summary -> Total Cancelled: " + totalCancelled
+					+ "  |  Total No-Show: " + totalNoShow
+					+ "  |  Average Cancelled Per Day: " + String.format("%.2f", averageCancelledPerDay));
+			summary.setStyle("-fx-font-weight: bold; -fx-text-fill: #1b5e20; -fx-font-size: 16px;");
 
 			chartHolder.getChildren().setAll(chart, summary);
 

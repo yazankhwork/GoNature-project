@@ -361,6 +361,7 @@ public class BookingDAO {
 					String email = rs.getString("email");
 					String telephone = rs.getString("telephone");
 
+					// כאן הפקודה שמקציבה בדיוק שעתיים לאישור לפי הדרישה!
 					String updateReminder = "UPDATE bookings "
 							+ "SET reminder_sent_at = CURRENT_TIMESTAMP, "
 							+ "confirmation_deadline = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 2 HOUR) "
@@ -387,6 +388,7 @@ public class BookingDAO {
 				}
 			}
 
+			// זה החלק שמבטל אוטומטית אם עברו שעתיים ושולח הודעה על ביטול
 			String expiredQuery = "SELECT booking_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email, telephone "
 					+ "FROM bookings "
 					+ "WHERE status = 'Pending' "
@@ -467,12 +469,13 @@ public class BookingDAO {
 			e.printStackTrace();
 		}
 
+		// *** שינוי קטלני: מעכשיו השאילתה בודקת אם עברה רק *שעה* אחת (60 דקות) ברשימת ההמתנה במקום שעתיים! ***
 		String q2 = "SELECT COALESCE(SUM(visitors_count), 0) "
 				+ "FROM waitinglist "
 				+ "WHERE park_name = ? "
 				+ "AND visit_date = ? "
 				+ "AND notified_time IS NOT NULL "
-				+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) < 120 "
+				+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) < 60 "
 				+ "AND TIMESTAMP(visit_date, visit_time) > CURRENT_TIMESTAMP "
 				+ "AND visit_time < ADDTIME(?, SEC_TO_TIME(? * 3600)) "
 				+ "AND ADDTIME(visit_time, SEC_TO_TIME(? * 3600)) > ?";

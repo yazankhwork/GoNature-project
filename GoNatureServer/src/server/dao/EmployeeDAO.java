@@ -1,6 +1,7 @@
 package server.dao;
 
 import java.sql.*;
+import java.util.ArrayList;
 /**
  * Handles employee-related database operations in the GoNature system.
  *
@@ -22,6 +23,43 @@ public class EmployeeDAO {
 	 */
 	public EmployeeDAO(Connection connection) {
 		this.connection = connection;
+	}
+	/**
+	 * Retrieves full profile information for an employee.
+	 *
+	 * @param empId employee identifier
+	 * @return list containing employee profile details, or null if not found
+	 */
+	public ArrayList<String> getEmployeeInfo(String empId) {
+		ArrayList<String> info = new ArrayList<>();
+		String q = "SELECT * FROM employees WHERE emp_id = ?";
+		try (PreparedStatement ps = connection.prepareStatement(q)) {
+			ps.setString(1, empId);
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) {
+					info.add("Employee");
+					info.add(rs.getString("full_name"));
+					
+					ResultSetMetaData rsmd = rs.getMetaData();
+					int columns = rsmd.getColumnCount();
+					boolean hasEmail = false, hasPhone = false;
+					for (int i = 1; i <= columns; i++) {
+						String colName = rsmd.getColumnName(i).toLowerCase();
+						if (colName.equals("email")) hasEmail = true;
+						if (colName.equals("phone")) hasPhone = true;
+					}
+					
+					info.add(hasEmail && rs.getString("email") != null ? rs.getString("email") : "N/A");
+					info.add(hasPhone && rs.getString("phone") != null ? rs.getString("phone") : "N/A");
+					
+					info.add("Role: " + rs.getString("role") + " | Park: " + rs.getString("park_name"));
+					return info;
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 	/**
 	 * Authenticates an employee using employee ID and password.

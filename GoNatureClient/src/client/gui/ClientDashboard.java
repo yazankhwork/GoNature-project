@@ -18,6 +18,7 @@ import client.network.INetworkObserver;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Optional;
 /**
  * Main dashboard of the GoNature client application.
  *
@@ -109,6 +110,9 @@ public class ClientDashboard extends Application implements INetworkObserver {
 	 * Indicates whether the booking is for a guided group.
 	 */
 	private CheckBox chkIsGuide = new CheckBox("This visit is for a group with a guide");
+	
+	private Label welcomeLabel = new Label();
+
 	/**
 	 * Creates and displays the main dashboard interface.
 	 *
@@ -125,7 +129,7 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			ClientSession.removeObserver(this);
 		});
 
-		Label welcomeLabel = new Label("🌿 Welcome, " + loggedInName);
+		welcomeLabel.setText("🌿 Welcome, " + loggedInName);
 		welcomeLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #1b5e20;");
 
 		if (isAccountGuide) {
@@ -146,11 +150,19 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		visitorsInput.setEditable(true);
 		visitorsInput.setStyle("-fx-border-color: #81c784; -fx-background-radius: 5px; -fx-border-radius: 5px;");
 		
-		emailInput.setPromptText("example@email.com");
-		emailInput.setStyle("-fx-border-color: #81c784; -fx-background-radius: 5px; -fx-border-radius: 5px;");
+		emailInput.setPromptText("Click 'Edit Profile' to set");
+		emailInput.setEditable(false);
+		emailInput.setFocusTraversable(false);
+		emailInput.setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #a5d6a7; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-text-fill: #388e3c; -fx-font-weight: bold;");
 		
-		phoneInput.setPromptText("Optional - 10 digits");
-		phoneInput.setStyle("-fx-border-color: #81c784; -fx-background-radius: 5px; -fx-border-radius: 5px;");
+		phoneInput.setPromptText("Click 'Edit Profile' to set");
+		phoneInput.setEditable(false);
+		phoneInput.setFocusTraversable(false);
+		phoneInput.setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #a5d6a7; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-text-fill: #388e3c; -fx-font-weight: bold;");
+		
+		Button btnProfile = new Button("Edit Profile");
+		btnProfile.setStyle("-fx-background-color: #8e24aa; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
+		btnProfile.setOnAction(e -> showMyProfile());
 		
 		Button btnShowPrices = new Button("View Pricing List");
 		btnShowPrices.setStyle(
@@ -167,9 +179,10 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		}
 		if (isGuest) {
 			welcomeLabel.setText("🌿 Welcome, Guest (" + loggedInVisitorId + ")");
+			btnProfile.setDisable(true); 
 		}
 
-		HBox rightAlign = new HBox(10, btnShowPrices, btnNotifications, btnLogout);
+		HBox rightAlign = new HBox(10, btnProfile, btnShowPrices, btnNotifications, btnLogout);
 		rightAlign.setAlignment(Pos.CENTER_RIGHT);
 		HBox.setHgrow(rightAlign, Priority.ALWAYS);
 		HBox topBar = new HBox(20, welcomeLabel, chkIsGuide, rightAlign);
@@ -241,9 +254,9 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		inputGrid.add(timeInput, 1, 1);
 		inputGrid.add(visitorsLabel, 2, 1);
 		inputGrid.add(visitorsInput, 3, 1);
-		inputGrid.add(new Label("Email:"), 0, 2);
+		inputGrid.add(new Label("Email (Read Only):"), 0, 2);
 		inputGrid.add(emailInput, 1, 2);
-		inputGrid.add(new Label("Phone:"), 2, 2);
+		inputGrid.add(new Label("Phone (Read Only):"), 2, 2);
 		inputGrid.add(phoneInput, 3, 2);
 
 		Button btnSelect = new Button("Check Availability");
@@ -262,18 +275,44 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		HBox buttonBox = new HBox(15, btnSelect, btnAdd, btnUpdate, btnCancel);
 		buttonBox.setPadding(new Insets(10, 0, 10, 0));
 
+		// --- Colorful View Pricing List ---
 		btnShowPrices.setOnAction(e -> {
 			Alert pricesAlert = new Alert(Alert.AlertType.INFORMATION);
 			pricesAlert.setTitle("GoNature Pricing List");
-			pricesAlert.setHeaderText("GoNature Ticket Pricing & Discount Rules\nBase Price per Ticket: 30 ILS");
-			pricesAlert.setContentText("1. Regular Pre-booked: 15% discount from the full price.\n\n"
-					+ "2. Regular Occasional (Walk-in): Full price (No discount).\n\n"
-					+ "3. Group Pre-booked: 25% discount + Extra 12% off for prepayment. The Guide enters for FREE.\n\n"
-					+ "4. Group Occasional (Walk-in): 10% discount from the full price. The Guide pays.\n\n"
-					+ "5. Subscribers: Receive an additional 10% compound discount on top of any other discounts!\n\n"
-					+ "6. Approved park discounts: If the department manager approved a park discount, it is applied to the final bill.");
+			pricesAlert.setHeaderText(null);
+
+			VBox pricingCard = new VBox(15);
+			pricingCard.setPadding(new Insets(20));
+			pricingCard.setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #81c784; -fx-border-width: 2px; -fx-border-radius: 10px; -fx-background-radius: 10px;");
+
+			Label title = new Label("GoNature Ticket Pricing & Discount Rules");
+			title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #1b5e20;");
+			
+			Label basePrice = new Label("💰 Base Price per Ticket: 30 ILS");
+			basePrice.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #e65100;");
+
+			VBox rulesBox = new VBox(8);
+			String labelStyle = "-fx-font-size: 13px; -fx-text-fill: #34495e; -fx-font-weight: bold;";
+			
+			rulesBox.getChildren().addAll(
+				new Label("1. Regular Pre-booked: 15% discount from the full price."),
+				new Label("2. Regular Occasional (Walk-in): Full price (No discount)."),
+				new Label("3. Group Pre-booked: 25% discount + Extra 12% off for prepayment. Guide enters FREE."),
+				new Label("4. Group Occasional (Walk-in): 10% discount from the full price. Guide pays."),
+				new Label("5. Subscribers: Receive an additional 10% compound discount!"),
+				new Label("6. Approved park discounts: Added automatically by the system.")
+			);
+			
+			for (javafx.scene.Node node : rulesBox.getChildren()) {
+				node.setStyle(labelStyle);
+			}
+
+			pricingCard.getChildren().addAll(title, new Separator(), basePrice, rulesBox);
+			pricesAlert.getDialogPane().setContent(pricingCard);
+			pricesAlert.getDialogPane().setStyle("-fx-background-color: transparent;");
 			pricesAlert.showAndWait();
 		});
+
 		btnNotifications.setOnAction(e -> showRecentNotifications(true));
 
 		btnSelect.setOnAction(e -> {
@@ -332,7 +371,6 @@ public class ClientDashboard extends Application implements INetworkObserver {
 				return;
 			}
 			
-			// וולידציה חדשה לפי סוג משתמש
 			if (visitors < 1 || visitors > finalMaxV) {
 				new Alert(Alert.AlertType.ERROR, "Limit Exceeded! As a " 
 						+ (isAccountGuide ? "Guide" : (isSubscriberAccount ? "Family Subscriber" : "Regular Visitor")) 
@@ -342,13 +380,13 @@ public class ClientDashboard extends Application implements INetworkObserver {
 
 			String email = emailInput.getText().trim();
 			if (email.isEmpty() || !email.contains("@")) {
-				new Alert(Alert.AlertType.ERROR, "Enter a valid email address.").showAndWait();
+				new Alert(Alert.AlertType.ERROR, "Email is missing or invalid!\nPlease click 'Edit Profile' to update your contact details before booking.").showAndWait();
 				return;
 			}
 			
 			String phone = phoneInput.getText().trim();
 			if (!phone.isEmpty() && !phone.matches("\\d{10}")) {
-				new Alert(Alert.AlertType.ERROR, "Phone must be exactly 10 digits!").showAndWait();
+				new Alert(Alert.AlertType.ERROR, "Phone must be exactly 10 digits!\nPlease click 'Edit Profile' to update your contact details before booking.").showAndWait();
 				return;
 			}
 
@@ -499,7 +537,6 @@ public class ClientDashboard extends Application implements INetworkObserver {
 				return;
 			}
 			
-			// וולידציה חדשה לפי סוג משתמש
 			if (visitors < 1 || visitors > finalMaxV) {
 				new Alert(Alert.AlertType.ERROR, "Limit Exceeded! As a " 
 						+ (isAccountGuide ? "Guide" : (isSubscriberAccount ? "Family Subscriber" : "Regular Visitor")) 
@@ -509,13 +546,13 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			
 			String email = emailInput.getText().trim();
 			if (email.isEmpty() || !email.contains("@")) {
-				new Alert(Alert.AlertType.ERROR, "Enter a valid email address.").showAndWait();
+				new Alert(Alert.AlertType.ERROR, "Email is missing or invalid!\nPlease click 'Edit Profile' to update your contact details before booking.").showAndWait();
 				return;
 			}
 			
 			String phone = phoneInput.getText().trim();
 			if (!phone.isEmpty() && !phone.matches("\\d{10}")) {
-				new Alert(Alert.AlertType.ERROR, "Phone must be exactly 10 digits!").showAndWait();
+				new Alert(Alert.AlertType.ERROR, "Phone must be exactly 10 digits!\nPlease click 'Edit Profile' to update your contact details before booking.").showAndWait();
 				return;
 			}
 			
@@ -570,6 +607,7 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			checkLiveCapacity();
 			checkWaitingListInbox();
 			selectedBookingId = -1;
+			fetchProfileContact(); 
 		});
 
 		if (isGuest) {
@@ -592,7 +630,24 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		primaryStage.setScene(new Scene(layout, 820, 550));
 		primaryStage.show();
 
+		fetchProfileContact();
 		checkLiveCapacity();
+	}
+	/**
+	 * Fetches the contact information from the user profile
+	 * and populates the text fields.
+	 */
+	private void fetchProfileContact() {
+		try {
+			Message infoResp = ClientSession.send(new Message("GET_USER_INFO", loggedInVisitorId));
+			if ("USER_INFO_RESULT".equals(infoResp.getCommand()) && infoResp.getData() != null) {
+				@SuppressWarnings("unchecked")
+				ArrayList<String> data = (ArrayList<String>) infoResp.getData();
+				loggedInName = data.get(1);
+				emailInput.setText("N/A".equals(data.get(2)) ? "" : data.get(2));
+				phoneInput.setText("N/A".equals(data.get(3)) ? "" : data.get(3));
+			}
+		} catch (Exception ex) {}
 	}
 	/**
 	 * Handles asynchronous notifications received from the server.
@@ -608,6 +663,116 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			alert.show();
 			
 			loadDataFromServer();
+		}
+	}
+	/**
+	 * Fetches and displays the current user's profile information
+	 * allowing them to edit their contact details in a colored, modern card.
+	 */
+	private void showMyProfile() {
+		try {
+			Message response = ClientSession.send(new Message("GET_USER_INFO", loggedInVisitorId));
+			if ("USER_INFO_RESULT".equals(response.getCommand()) && response.getData() != null) {
+				@SuppressWarnings("unchecked")
+				ArrayList<String> data = (ArrayList<String>) response.getData();
+				
+				Dialog<ArrayList<String>> dialog = new Dialog<>();
+				dialog.setTitle("Edit Profile");
+				dialog.setHeaderText(null); // Custom header inside content
+				
+				ButtonType saveBtnType = new ButtonType("Save Changes", ButtonBar.ButtonData.OK_DONE);
+				dialog.getDialogPane().getButtonTypes().addAll(saveBtnType, ButtonType.CANCEL);
+				
+				VBox profileCard = new VBox(15);
+				profileCard.setPadding(new Insets(20));
+				profileCard.setStyle("-fx-background-color: white; -fx-background-radius: 10px; -fx-border-color: #81c784; -fx-border-width: 2px; -fx-border-radius: 10px;");
+				
+				Label title = new Label("🌿 Edit Your Profile");
+				title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #1b5e20;");
+				
+				Label subTitle = new Label("Account Type: " + data.get(0) + "\n" + data.get(4));
+				subTitle.setStyle("-fx-text-fill: #0277bd; -fx-font-weight: bold;");
+
+				GridPane grid = new GridPane();
+				grid.setHgap(15);
+				grid.setVgap(15);
+				
+				String[] nameParts = data.get(1).split(" ", 2);
+				String fName = nameParts[0];
+				String lName = nameParts.length > 1 ? nameParts[1] : "";
+				
+				String fieldStyle = "-fx-border-color: #81c784; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-pref-height: 35px;";
+				
+				TextField firstNameField = new TextField(fName);
+				firstNameField.setStyle(fieldStyle);
+				TextField lastNameField = new TextField(lName);
+				lastNameField.setStyle(fieldStyle);
+				TextField emailField = new TextField("N/A".equals(data.get(2)) ? "" : data.get(2));
+				emailField.setStyle(fieldStyle);
+				TextField phoneField = new TextField("N/A".equals(data.get(3)) ? "" : data.get(3));
+				phoneField.setStyle(fieldStyle);
+				
+				Label lblFName = new Label("First Name:");
+				lblFName.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+				Label lblLName = new Label("Last Name:");
+				lblLName.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+				Label lblEmail = new Label("Email:");
+				lblEmail.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+				Label lblPhone = new Label("Phone:");
+				lblPhone.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+
+				grid.add(lblFName, 0, 0);
+				grid.add(firstNameField, 1, 0);
+				grid.add(lblLName, 0, 1);
+				grid.add(lastNameField, 1, 1);
+				grid.add(lblEmail, 0, 2);
+				grid.add(emailField, 1, 2);
+				grid.add(lblPhone, 0, 3);
+				grid.add(phoneField, 1, 3);
+				
+				profileCard.getChildren().addAll(title, subTitle, new Separator(), grid);
+				dialog.getDialogPane().setContent(profileCard);
+				dialog.getDialogPane().setStyle("-fx-background-color: transparent;"); // To show the rounded corners cleanly
+				
+				dialog.setResultConverter(dialogButton -> {
+					if (dialogButton == saveBtnType) {
+						ArrayList<String> res = new ArrayList<>();
+						res.add(loggedInVisitorId);
+						String newFullName = firstNameField.getText().trim();
+						if(!lastNameField.getText().trim().isEmpty()) {
+							newFullName += " " + lastNameField.getText().trim();
+						}
+						res.add(newFullName);
+						res.add(emailField.getText().trim());
+						res.add(phoneField.getText().trim());
+						return res;
+					}
+					return null;
+				});
+				
+				Optional<ArrayList<String>> result = dialog.showAndWait();
+				result.ifPresent(newInfo -> {
+					try {
+						Message updateResp = ClientSession.send(new Message("UPDATE_PROFILE", newInfo));
+						if ("PROFILE_UPDATED".equals(updateResp.getCommand())) {
+							loggedInName = newInfo.get(1);
+							emailInput.setText(newInfo.get(2));
+							phoneInput.setText(newInfo.get(3));
+							welcomeLabel.setText("🌿 Welcome, " + loggedInName + (isSubscriberAccount ? " (Sub #" + subscriptionNumber + ")" : ""));
+							new Alert(Alert.AlertType.INFORMATION, "Profile updated successfully!").showAndWait();
+						} else {
+							new Alert(Alert.AlertType.ERROR, "Failed to update profile.").showAndWait();
+						}
+					} catch (Exception ex) {
+						new Alert(Alert.AlertType.ERROR, "Connection error.").showAndWait();
+					}
+				});
+
+			} else {
+				new Alert(Alert.AlertType.ERROR, "Could not load profile information.").showAndWait();
+			}
+		} catch (Exception ex) {
+			new Alert(Alert.AlertType.ERROR, "Connection error.").showAndWait();
 		}
 	}
 	/**
@@ -888,7 +1053,7 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		}
 	}
 	/**
-	 * Loads and displays recent visitor notifications.
+	 * Loads and displays recent visitor notifications in beautifully styled colored cards.
 	 *
 	 * @param showWhenEmpty true to show a message when no notifications exist
 	 */
@@ -911,7 +1076,17 @@ public class ClientDashboard extends Application implements INetworkObserver {
 				return;
 			}
 
-			StringBuilder sb = new StringBuilder();
+			Alert alert = new Alert(Alert.AlertType.INFORMATION);
+			alert.setTitle("My Notifications");
+			alert.setHeaderText(null); 
+
+			VBox notifContainer = new VBox(15);
+			notifContainer.setPadding(new Insets(15));
+			notifContainer.setStyle("-fx-background-color: #e8f5e9;");
+
+			Label title = new Label("🔔 Recent GoNature Notifications");
+			title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #1b5e20;");
+			notifContainer.getChildren().add(title);
 
 			for (ArrayList<Object> row : notifications) {
 				String type = String.valueOf(row.get(1));
@@ -920,24 +1095,34 @@ public class ClientDashboard extends Application implements INetworkObserver {
 				String phone = String.valueOf(row.get(4));
 				String sentAt = String.valueOf(row.get(5));
 
-				sb.append("Type: ").append(type).append("\n");
-				sb.append("Sent At: ").append(sentAt).append("\n");
-				sb.append("Email: ").append(email).append("\n");
-				sb.append("SMS Phone: ").append(phone).append("\n");
-				sb.append(message).append("\n");
-				sb.append("-----------------------------\n");
+				VBox card = new VBox(8);
+				card.setPadding(new Insets(15));
+				card.setStyle("-fx-background-color: white; -fx-background-radius: 8px; -fx-border-color: #a5d6a7; -fx-border-radius: 8px; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 2);");
+
+				Label lblType = new Label(type);
+				lblType.setStyle("-fx-font-weight: bold; -fx-text-fill: #0288d1; -fx-font-size: 14px;");
+				
+				Label lblDate = new Label("Received: " + sentAt);
+				lblDate.setStyle("-fx-text-fill: #7f8c8d; -fx-font-size: 12px;");
+
+				Label lblContact = new Label("Sent to: " + email + " | Phone: " + phone);
+				lblContact.setStyle("-fx-text-fill: #e65100; -fx-font-weight: bold; -fx-font-size: 12px;");
+
+				Label lblMsg = new Label(message);
+				lblMsg.setWrapText(true);
+				lblMsg.setStyle("-fx-text-fill: #2c3e50; -fx-font-size: 13px;");
+
+				card.getChildren().addAll(lblType, lblDate, lblContact, new Separator(), lblMsg);
+				notifContainer.getChildren().add(card);
 			}
 
-			TextArea area = new TextArea(sb.toString());
-			area.setEditable(false);
-			area.setWrapText(true);
-			area.setPrefWidth(600);
-			area.setPrefHeight(400);
+			ScrollPane scrollPane = new ScrollPane(notifContainer);
+			scrollPane.setFitToWidth(true);
+			scrollPane.setPrefSize(450, 400);
+			scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
 
-			Alert alert = new Alert(Alert.AlertType.INFORMATION);
-			alert.setTitle("My Notifications");
-			alert.setHeaderText("Recent GoNature Notifications");
-			alert.getDialogPane().setContent(area);
+			alert.getDialogPane().setContent(scrollPane);
+			alert.getDialogPane().setStyle("-fx-background-color: #e8f5e9;");
 			alert.showAndWait();
 
 		} catch (Exception ex) {
