@@ -659,6 +659,17 @@ public class DatabaseController {
 		return reportDAO.reportDetailedVisits(park, year, month);
 	}
 	/**
+	 * Generates the visit times report.
+	 *
+	 * @param park park name
+	 * @param year report year
+	 * @param month report month
+	 * @return entry times and stay duration report data
+	 */
+	public ArrayList<Object> reportVisitTimes(String park, int year, int month) {
+		return reportDAO.reportVisitTimes(park, year, month);
+	}
+	/**
 	 * Generates a report showing park utilization below full capacity.
 	 *
 	 * @param park park name

@@ -757,6 +757,13 @@ public class GoNatureServer extends AbstractServer {
 						dbController.reportDetailedVisits((String) f.get(0), (int) f.get(1), (int) f.get(2)));
 				break;
 			}
+			case "REPORT_VISIT_TIMES": {
+				@SuppressWarnings("unchecked")
+				ArrayList<Object> f = (ArrayList<Object>) data;
+				response = new Message("REPORT_VISIT_TIMES_RESULT",
+						dbController.reportVisitTimes((String) f.get(0), (int) f.get(1), (int) f.get(2)));
+				break;
+			}
 			case "REPORT_NOT_FULL": {
 				@SuppressWarnings("unchecked")
 				ArrayList<Object> f = (ArrayList<Object>) data;

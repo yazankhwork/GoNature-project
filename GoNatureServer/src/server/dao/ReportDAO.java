@@ -199,6 +199,100 @@ public class ReportDAO {
 		return rows;
 	}
 	/**
+	 * Generates the visit times report: entry hours and average stay duration,
+	 * grouped by visitor type.
+	 *
+	 * @param park park name
+	 * @param year report year
+	 * @param month report month
+	 * @return result containing entry-hour rows and stay-duration rows
+	 */
+	public ArrayList<Object> reportVisitTimes(String park, int year, int month) {
+		ArrayList<ArrayList<Object>> entryRows = new ArrayList<>();
+		ArrayList<ArrayList<Object>> stayRows = new ArrayList<>();
+
+		String entryQuery = "SELECT HOUR(checkin_time) AS entry_hour, "
+				+ "SUM(CASE WHEN visit_type = 'Alone' THEN visitors_count ELSE 0 END) AS alone_count, "
+				+ "SUM(CASE WHEN visit_type = 'Private Group' THEN visitors_count ELSE 0 END) AS private_count, "
+				+ "SUM(CASE WHEN visit_type = 'Guided Group' THEN visitors_count ELSE 0 END) AS guided_count "
+				+ "FROM ("
+				+ "SELECT visitors_count, checkin_time, "
+				+ "CASE "
+				+ "WHEN is_guide_group = 1 OR booking_type = 'Guide' THEN 'Guided Group' "
+				+ "WHEN visitors_count = 1 THEN 'Alone' "
+				+ "ELSE 'Private Group' END AS visit_type "
+				+ "FROM bookings "
+				+ "WHERE park_name = ? "
+				+ "AND YEAR(visit_date) = ? "
+				+ "AND MONTH(visit_date) = ? "
+				+ "AND checkin_time IS NOT NULL "
+				+ "AND status IN ('Entered', 'Exited')"
+				+ ") typed_visits "
+				+ "GROUP BY HOUR(checkin_time) "
+				+ "ORDER BY entry_hour";
+
+		try (PreparedStatement ps = connection.prepareStatement(entryQuery)) {
+			ps.setString(1, park);
+			ps.setInt(2, year);
+			ps.setInt(3, month);
+
+			try (ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) {
+					ArrayList<Object> row = new ArrayList<>();
+					row.add(String.format("%02d:00", rs.getInt("entry_hour")));
+					row.add(rs.getInt("alone_count"));
+					row.add(rs.getInt("private_count"));
+					row.add(rs.getInt("guided_count"));
+					entryRows.add(row);
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		String stayQuery = "SELECT visit_type, "
+				+ "ROUND(SUM(stay_minutes * visitors_count) / SUM(visitors_count)) AS avg_stay_minutes "
+				+ "FROM ("
+				+ "SELECT visitors_count, "
+				+ "TIMESTAMPDIFF(MINUTE, checkin_time, COALESCE(checkout_time, CURRENT_TIMESTAMP)) AS stay_minutes, "
+				+ "CASE "
+				+ "WHEN is_guide_group = 1 OR booking_type = 'Guide' THEN 'Guided Group' "
+				+ "WHEN visitors_count = 1 THEN 'Alone' "
+				+ "ELSE 'Private Group' END AS visit_type "
+				+ "FROM bookings "
+				+ "WHERE park_name = ? "
+				+ "AND YEAR(visit_date) = ? "
+				+ "AND MONTH(visit_date) = ? "
+				+ "AND checkin_time IS NOT NULL "
+				+ "AND status IN ('Entered', 'Exited')"
+				+ ") typed_visits "
+				+ "WHERE stay_minutes >= 0 "
+				+ "GROUP BY visit_type "
+				+ "ORDER BY visit_type";
+
+		try (PreparedStatement ps = connection.prepareStatement(stayQuery)) {
+			ps.setString(1, park);
+			ps.setInt(2, year);
+			ps.setInt(3, month);
+
+			try (ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) {
+					ArrayList<Object> row = new ArrayList<>();
+					row.add(rs.getString("visit_type"));
+					row.add(rs.getInt("avg_stay_minutes"));
+					stayRows.add(row);
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		ArrayList<Object> result = new ArrayList<>();
+		result.add(entryRows);
+		result.add(stayRows);
+		return result;
+	}
+	/**
 	 * Generates a monthly cancellation and no-show report.
 	 *
 	 * @param park park name, or "ALL" for all parks

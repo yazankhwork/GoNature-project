@@ -12,6 +12,10 @@ import javafx.scene.text.FontWeight;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import javafx.scene.chart.BarChart;
+import javafx.scene.chart.CategoryAxis;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
 
 import common.Message;
 import client.network.ClientSession;
@@ -282,6 +286,10 @@ public class ParkManagerScreen extends Application {
 		notFullReportBtn.setStyle("-fx-background-color: #8e24aa; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
 		notFullReportBtn.setOnAction(e -> showParkNotFullReport());
 		
+		Button visitTimesReportBtn = new Button("Visit Times Report");
+		visitTimesReportBtn.setStyle("-fx-background-color: #00695c; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
+		visitTimesReportBtn.setOnAction(e -> showVisitTimesReport());
+		
 		Button logoutBtn = new Button("Logout");
 		logoutBtn.setStyle("-fx-background-color: #c62828; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
 		logoutBtn.setOnAction(e -> LogoutHelper.logout(stage));
@@ -307,6 +315,7 @@ public class ParkManagerScreen extends Application {
 		
 		grid.addRow(13, new Label("Report month/year:"), reportMonthCombo, reportYearCombo, monthlyVisitorsReportBtn);
 		grid.addRow(14, new Label("Capacity report:"), notFullReportBtn);
+		grid.addRow(15, new Label("Visit times report:"), visitTimesReportBtn);
 		
 		VBox layout = new VBox(15, titleLabel, new Separator(), grid, statusLabel, new Separator(), logoutBtn);
 		layout.setPadding(new Insets(20));
@@ -460,6 +469,103 @@ public class ParkManagerScreen extends Application {
 
 		} catch (Exception ex) {
 			new Alert(Alert.AlertType.ERROR, "Connection error while loading not-full report.").showAndWait();
+		}
+	}
+	/**
+	 * Loads and displays the visit times report.
+	 * Shows entry hours and average stay duration grouped by visitor type.
+	 */
+	@SuppressWarnings("unchecked")
+	private void showVisitTimesReport() {
+		try {
+			ArrayList<Object> data = new ArrayList<>();
+			data.add(parkCombo.getValue());
+			data.add(reportYearCombo.getValue());
+			data.add(reportMonthCombo.getValue());
+
+			Message resp = request(new Message("REPORT_VISIT_TIMES", data));
+
+			if (!"REPORT_VISIT_TIMES_RESULT".equals(resp.getCommand())) {
+				new Alert(Alert.AlertType.ERROR, "Could not load visit times report.").showAndWait();
+				return;
+			}
+
+			ArrayList<Object> result = (ArrayList<Object>) resp.getData();
+			ArrayList<ArrayList<Object>> entryRows = (ArrayList<ArrayList<Object>>) result.get(0);
+			ArrayList<ArrayList<Object>> stayRows = (ArrayList<ArrayList<Object>>) result.get(1);
+
+			CategoryAxis entryX = new CategoryAxis();
+			NumberAxis entryY = new NumberAxis();
+			entryX.setLabel("Entry Hour");
+			entryY.setLabel("Number of Visitors");
+
+			BarChart<String, Number> entryChart = new BarChart<>(entryX, entryY);
+			entryChart.setTitle("Entry Times by Visitor Type - " + parkCombo.getValue()
+					+ " " + reportMonthCombo.getValue() + "/" + reportYearCombo.getValue());
+			entryChart.setPrefSize(800, 300);
+
+			XYChart.Series<String, Number> aloneSeries = new XYChart.Series<>();
+			aloneSeries.setName("Alone");
+
+			XYChart.Series<String, Number> privateSeries = new XYChart.Series<>();
+			privateSeries.setName("Private Group");
+
+			XYChart.Series<String, Number> guidedSeries = new XYChart.Series<>();
+			guidedSeries.setName("Guided Group");
+
+			if (entryRows == null || entryRows.isEmpty()) {
+				aloneSeries.getData().add(new XYChart.Data<>("No Data", 0));
+				privateSeries.getData().add(new XYChart.Data<>("No Data", 0));
+				guidedSeries.getData().add(new XYChart.Data<>("No Data", 0));
+			} else {
+				for (ArrayList<Object> row : entryRows) {
+					String hour = String.valueOf(row.get(0));
+					aloneSeries.getData().add(new XYChart.Data<>(hour, (int) row.get(1)));
+					privateSeries.getData().add(new XYChart.Data<>(hour, (int) row.get(2)));
+					guidedSeries.getData().add(new XYChart.Data<>(hour, (int) row.get(3)));
+				}
+			}
+
+			entryChart.getData().setAll(aloneSeries, privateSeries, guidedSeries);
+
+			CategoryAxis stayX = new CategoryAxis();
+			NumberAxis stayY = new NumberAxis();
+			stayX.setLabel("Visitor Type");
+			stayY.setLabel("Average Stay Duration (minutes)");
+
+			BarChart<String, Number> stayChart = new BarChart<>(stayX, stayY);
+			stayChart.setTitle("Average Stay Duration by Visitor Type");
+			stayChart.setPrefSize(800, 300);
+
+			XYChart.Series<String, Number> staySeries = new XYChart.Series<>();
+			staySeries.setName("Average stay minutes");
+
+			if (stayRows == null || stayRows.isEmpty()) {
+				staySeries.getData().add(new XYChart.Data<>("No Data", 0));
+			} else {
+				for (ArrayList<Object> row : stayRows) {
+					staySeries.getData().add(new XYChart.Data<>(String.valueOf(row.get(0)), (int) row.get(1)));
+				}
+			}
+
+			stayChart.getData().setAll(staySeries);
+
+			VBox reportBox = new VBox(10, entryChart, stayChart);
+			reportBox.setPadding(new Insets(10));
+
+			ScrollPane scroll = new ScrollPane(reportBox);
+			scroll.setFitToWidth(true);
+			scroll.setPrefSize(850, 650);
+
+			Alert alert = new Alert(Alert.AlertType.INFORMATION);
+			alert.setTitle("Visit Times Report");
+			alert.setHeaderText("Entry times and stay duration by visitor type");
+			alert.getDialogPane().setContent(scroll);
+			alert.getDialogPane().setPrefSize(900, 720);
+			alert.showAndWait();
+
+		} catch (Exception ex) {
+			new Alert(Alert.AlertType.ERROR, "Connection error while loading visit times report.").showAndWait();
 		}
 	}
 }
