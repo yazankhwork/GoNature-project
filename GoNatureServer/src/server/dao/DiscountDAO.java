@@ -2,17 +2,47 @@ package server.dao;
 
 import java.sql.*;
 import java.util.ArrayList;
-
+/**
+ * Handles discount-related database operations in the GoNature system.
+ *
+ * This class manages discount requests, including creating,
+ * approving, rejecting and retrieving active approved discounts.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class DiscountDAO {
-
+	/**
+	 * Active database connection used for discount queries.
+	 */
 	private final Connection connection;
+	/**
+	 * DAO used to validate employee roles before processing discount requests.
+	 */
 	private final EmployeeDAO employeeDAO;
-
+	/**
+	 * Creates a new DiscountDAO instance.
+	 *
+	 * @param connection active database connection
+	 * @param employeeDAO employee DAO used for role validation
+	 */
 	public DiscountDAO(Connection connection, EmployeeDAO employeeDAO) {
 		this.connection = connection;
 		this.employeeDAO = employeeDAO;
 	}
-
+	/**
+	 * Creates a new discount request for a park.
+	 *
+	 * Only a park manager is allowed to create discount requests.
+	 *
+	 * @param parkName park name
+	 * @param discountName discount name
+	 * @param discountPercent requested discount percentage
+	 * @param startDate discount start date
+	 * @param endDate discount end date
+	 * @param requestedBy employee who created the request
+	 * @return true if the request was created successfully, otherwise false
+	 */
 	public boolean createDiscountRequest(String parkName, String discountName, int discountPercent, String startDate, String endDate, String requestedBy) {
 		if (!employeeDAO.isEmployeeRole(requestedBy, "PARK_MANAGER")) {
 			System.out.println("Only PARK_MANAGER can create discount requests.");
@@ -46,7 +76,11 @@ public class DiscountDAO {
 			return false;
 		}
 	}
-
+	/**
+	 * Retrieves all pending discount requests.
+	 *
+	 * @return list of pending discount requests
+	 */
 	public ArrayList<ArrayList<Object>> getPendingDiscountRequests() {
 		ArrayList<ArrayList<Object>> list = new ArrayList<>();
 
@@ -75,7 +109,15 @@ public class DiscountDAO {
 
 		return list;
 	}
-
+	/**
+	 * Approves a pending discount request.
+	 *
+	 * Only a department manager can approve discount requests.
+	 *
+	 * @param requestId discount request identifier
+	 * @param decisionBy employee who approved the request
+	 * @return true if the request was approved successfully, otherwise false
+	 */
 	public boolean approveDiscountRequest(int requestId, String decisionBy) {
 		if (!employeeDAO.isEmployeeRole(decisionBy, "DEPT_MANAGER")) {
 			System.out.println("Only DEPT_MANAGER can approve discount requests.");
@@ -97,7 +139,15 @@ public class DiscountDAO {
 			return false;
 		}
 	}
-
+	/**
+	 * Rejects a pending discount request.
+	 *
+	 * Only a department manager can reject discount requests.
+	 *
+	 * @param requestId discount request identifier
+	 * @param decisionBy employee who rejected the request
+	 * @return true if the request was rejected successfully, otherwise false
+	 */
 	public boolean rejectDiscountRequest(int requestId, String decisionBy) {
 		if (!employeeDAO.isEmployeeRole(decisionBy, "DEPT_MANAGER")) {
 			System.out.println("Only DEPT_MANAGER can reject discount requests.");
@@ -119,7 +169,12 @@ public class DiscountDAO {
 			return false;
 		}
 	}
-
+	/**
+	 * Retrieves the currently approved discount percentage for a park.
+	 *
+	 * @param parkName park name
+	 * @return approved discount percentage, or 0 if no active discount exists
+	 */
 	public int getApprovedDiscountPercent(String parkName) {
 		String q = "SELECT COALESCE(MAX(discount_percent), 0) AS discount_percent "
 				+ "FROM discount_requests "

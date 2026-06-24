@@ -5,14 +5,38 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Types;
 import java.util.ArrayList;
-
+/**
+ * Handles notification-related database operations in the GoNature system.
+ *
+ * This class is responsible for creating notifications and retrieving
+ * recent notifications for visitors.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class NotificationDAO {
-
+	/**
+	 * Active database connection used for notification queries.
+	 */
 	private final Connection connection;
-
+	/**
+	 * Creates a new NotificationDAO instance.
+	 *
+	 * @param connection active database connection
+	 */
 	public NotificationDAO(Connection connection) {
 		this.connection = connection;
 	}
+	/**
+	 * Creates a new notification for a visitor.
+	 *
+	 * @param visitorId visitor identifier
+	 * @param bookingId related booking identifier, or null if not related to a booking
+	 * @param notificationType notification type
+	 * @param messageText notification content
+	 * @param email visitor email address
+	 * @param phone visitor phone number
+	 */
 	public void createNotification(String visitorId, Integer bookingId, String notificationType,
 			String messageText, String email, String phone) {
 
@@ -40,6 +64,12 @@ public class NotificationDAO {
 			e.printStackTrace();
 		}
 	}
+	/**
+	 * Retrieves the latest notifications of a visitor.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return list of recent visitor notifications
+	 */
 	public ArrayList<ArrayList<Object>> getVisitorNotifications(String visitorId) {
 		ArrayList<ArrayList<Object>> list = new ArrayList<>();
 

@@ -6,14 +6,43 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 
 import common.Booking;
-
+/**
+ * Handles all booking-related database operations in the GoNature system.
+ *
+ * This class is responsible for creating, updating, retrieving,
+ * cancelling and managing bookings. It also manages booking confirmations,
+ * check-in/check-out operations, visitor counting and booking notifications.
+ *
+ * The class communicates directly with the database using JDBC.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class BookingDAO {
-
+	/**
+	 * Active database connection.
+	 */
 	private final Connection connection;
+	/**
+	 * DAO used for park-related operations.
+	 */
 	private final ParkDAO parkDAO;
+	/**
+	 * DAO used for visitor-related operations.
+	 */
 	private final VisitorDAO visitorDAO;
+	/**
+	 * DAO used for notification-related operations.
+	 */
 	private final NotificationDAO notificationDAO;
-
+	/**
+	 * Creates a new BookingDAO instance.
+	 *
+	 * @param connection active database connection
+	 * @param parkDAO park data access object
+	 * @param visitorDAO visitor data access object
+	 * @param notificationDAO notification data access object
+	 */
 	public BookingDAO(Connection connection, ParkDAO parkDAO, VisitorDAO visitorDAO,
 			NotificationDAO notificationDAO) {
 		this.connection = connection;
@@ -21,6 +50,11 @@ public class BookingDAO {
 		this.visitorDAO = visitorDAO;
 		this.notificationDAO = notificationDAO;
 	}
+	/**
+	 * Generates a unique booking confirmation code.
+	 *
+	 * @return generated confirmation code
+	 */
 	public String generateConfirmationCode() {
 		for (int i = 0; i < 20; i++) {
 			String code = String.valueOf(100000 + (int) (Math.random() * 900000));
@@ -43,9 +77,21 @@ public class BookingDAO {
 
 		return String.valueOf(System.currentTimeMillis()).substring(7);
 	}
+	/**
+	 * Saves a booking in the database.
+	 *
+	 * @param b booking object
+	 * @return true if the booking was saved successfully, otherwise false
+	 */
 	public boolean saveBooking(Booking b) {
 		return saveBookingAndReturnCode(b) != null;
 	}
+	/**
+	 * Saves a booking and returns its generated confirmation code.
+	 *
+	 * @param b booking object
+	 * @return confirmation code if successful, otherwise null
+	 */
 	public String saveBookingAndReturnCode(Booking b) {
 		String code = generateConfirmationCode();
 
@@ -110,6 +156,12 @@ public class BookingDAO {
 
 		return null;
 	}
+	/**
+	 * Retrieves a booking from the database by its booking ID.
+	 *
+	 * @param bookingId booking identifier
+	 * @return booking object if found, otherwise null
+	 */
 	public Booking getBookingById(int bookingId) {
 		String q = "SELECT * FROM bookings WHERE booking_id = ?";
 		try (PreparedStatement ps = connection.prepareStatement(q)) {
@@ -134,6 +186,12 @@ public class BookingDAO {
 		}
 		return null;
 	}
+	/**
+	 * Retrieves a booking from the database by its confirmation code.
+	 *
+	 * @param code booking confirmation code
+	 * @return booking object if found, otherwise null
+	 */
 	public Booking getBookingByConfirmationCode(String code) {
 		String q = "SELECT * FROM bookings WHERE confirmation_code = ?";
 
@@ -167,6 +225,12 @@ public class BookingDAO {
 
 		return null;
 	}
+	/**
+	 * Updates an existing booking in the database.
+	 *
+	 * @param b booking object with updated details
+	 * @return true if the booking was updated successfully, otherwise false
+	 */
 	public boolean updateBooking(Booking b) {
 		String query = "UPDATE bookings SET park_name=?, visit_date=?, visit_time=?, visitors_count=?, email=?, telephone=?, total_price=?, booking_type=?, is_guide_group=?, is_subscriber=? WHERE booking_id=? AND visitor_id=? AND status != 'Cancelled'";
 		try (PreparedStatement pstmt = connection.prepareStatement(query)) {
@@ -190,6 +254,12 @@ public class BookingDAO {
 			return false;
 		}
 	}
+	/**
+	 * Registers visitor exit for a booking.
+	 *
+	 * @param bookingId booking identifier
+	 * @return true if the exit was registered successfully, otherwise false
+	 */
 	public boolean exitBooking(int bookingId) {
 		String q = "UPDATE bookings SET status = 'Exited', checkout_time = CURRENT_TIMESTAMP "
 				+ "WHERE booking_id = ? AND status = 'Entered'";
@@ -202,6 +272,12 @@ public class BookingDAO {
 			return false;
 		}
 	}
+	/**
+	 * Confirms a visitor's arrival before the confirmation deadline.
+	 *
+	 * @param bookingId booking identifier
+	 * @return true if the booking was confirmed successfully, otherwise false
+	 */
 	public boolean confirmArrival(int bookingId) {
 		String q = "UPDATE bookings "
 				+ "SET status = 'Confirmed' "
@@ -219,6 +295,12 @@ public class BookingDAO {
 			return false;
 		}
 	}
+	/**
+	 * Registers visitor entry into a park.
+	 *
+	 * @param bookingId booking identifier
+	 * @return true if the check-in operation succeeded, otherwise false
+	 */
 	public boolean checkInBooking(int bookingId) {
 		String q = "UPDATE bookings "
 				+ "SET status = 'Entered', checkin_time = CURRENT_TIMESTAMP "
@@ -234,6 +316,13 @@ public class BookingDAO {
 			return false;
 		}
 	}
+	/**
+	 * Updates the status of a booking.
+	 *
+	 * @param bookingId booking identifier
+	 * @param status new booking status
+	 * @return true if the update succeeded, otherwise false
+	 */
 	public boolean setBookingStatus(int bookingId, String status) {
 		String q = "UPDATE bookings SET status = ? WHERE booking_id = ?";
 		try (PreparedStatement ps = connection.prepareStatement(q)) {
@@ -245,6 +334,12 @@ public class BookingDAO {
 			return false;
 		}
 	}
+	/**
+	 * Processes pending booking confirmations.
+	 *
+	 * Sends reminder notifications for upcoming visits and automatically
+	 * cancels bookings that were not confirmed before the deadline.
+	 */
 	public void processBookingConfirmations() {
 		try {
 			String remindersQuery = "SELECT booking_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email, telephone "
@@ -340,6 +435,16 @@ public class BookingDAO {
 			e.printStackTrace();
 		}
 	}
+	/**
+	 * Counts the number of visitors expected in a park at a specific date and time.
+	 *
+	 * The calculation includes active bookings and valid waiting-list entries.
+	 *
+	 * @param parkName park name
+	 * @param date visit date
+	 * @param time visit time
+	 * @return total number of visitors
+	 */
 	public int countVisitorsAt(String parkName, LocalDate date, LocalTime time) {
 		int total = 0;
 		String q1 = "SELECT COALESCE(SUM(visitors_count), 0) " + "FROM bookings " + "WHERE park_name = ? "
@@ -392,6 +497,12 @@ public class BookingDAO {
 		}
 		return total;
 	}
+	/**
+	 * Retrieves the current number of visitors inside a specific park.
+	 *
+	 * @param parkName park name
+	 * @return current number of visitors in the park
+	 */
 	public int getCurrentVisitorsInPark(String parkName) {
 		String q = "SELECT COALESCE(SUM(visitors_count),0) FROM bookings WHERE park_name = ? AND status = 'Entered'";
 		try (PreparedStatement ps = connection.prepareStatement(q)) {
@@ -405,6 +516,12 @@ public class BookingDAO {
 		}
 		return 0;
 	}
+	/**
+	 * Retrieves all bookings of a specific visitor.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return list of visitor bookings
+	 */
 	public ArrayList<Booking> getActiveBookings(String visitorId) {
 		ArrayList<Booking> list = new ArrayList<>();
 
@@ -444,6 +561,13 @@ public class BookingDAO {
 
 		return list;
 	}
+	/**
+	 * Cancels a booking and returns the refund amount.
+	 *
+	 * @param bookingId booking identifier
+	 * @param visitorId visitor identifier
+	 * @return refund amount, or -1 if cancellation failed
+	 */
 	public int cancelBookingAndReturnRefund(int bookingId, String visitorId) {
 		String priceQuery = "SELECT total_price FROM bookings "
 				+ "WHERE booking_id = ? "

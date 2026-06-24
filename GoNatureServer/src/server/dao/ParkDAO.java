@@ -2,16 +2,41 @@ package server.dao;
 
 import java.sql.*;
 import java.util.ArrayList;
-
+/**
+ * Handles park-related database operations in the GoNature system.
+ *
+ * This class manages park parameters such as maximum capacity,
+ * booking percentage, visit duration and park change requests.
+ * It also supports approval and rejection of park parameter changes.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class ParkDAO {
-
+	/**
+	 * Active database connection used for park queries.
+	 */
 	private final Connection connection;
+	/**
+	 * DAO used to verify employee roles before creating or approving requests.
+	 */
 	private final EmployeeDAO employeeDAO;
-
+	/**
+	 * Creates a new ParkDAO instance.
+	 *
+	 * @param connection active database connection
+	 * @param employeeDAO employee DAO used for role validation
+	 */
 	public ParkDAO(Connection connection, EmployeeDAO employeeDAO) {
 		this.connection = connection;
 		this.employeeDAO = employeeDAO;
 	}
+	/**
+	 * Retrieves the maximum capacity of a park.
+	 *
+	 * @param parkName park name
+	 * @return park maximum capacity
+	 */
 	public int getParkCapacity(String parkName) {
 		String q = "SELECT max_capacity FROM parks WHERE park_name = ?";
 		try (PreparedStatement ps = connection.prepareStatement(q)) {
@@ -25,6 +50,12 @@ public class ParkDAO {
 		}
 		return 150; // fallback if park missing
 	}
+	/**
+	 * Retrieves the booking percentage allowed for a park.
+	 *
+	 * @param parkName park name
+	 * @return booking percentage
+	 */
 	public int getParkBookingPercent(String parkName) {
 		String q = "SELECT booking_percent FROM parks WHERE park_name = ?";
 
@@ -42,6 +73,12 @@ public class ParkDAO {
 
 		return 80;
 	}
+	/**
+	 * Retrieves the standard visit duration of a park.
+	 *
+	 * @param parkName park name
+	 * @return visit duration in hours
+	 */
 	public int getParkVisitDurationHours(String parkName) {
 		String q = "SELECT visit_duration_hours FROM parks WHERE park_name = ?";
 
@@ -59,12 +96,24 @@ public class ParkDAO {
 
 		return 4;
 	}
+	/**
+	 * Calculates the number of places that can be booked in advance.
+	 *
+	 * @param parkName park name
+	 * @return bookable capacity
+	 */
 	public int getBookableCapacity(String parkName) {
 		int capacity = getParkCapacity(parkName);
 		int percent = getParkBookingPercent(parkName);
 
 		return (capacity * percent) / 100;
 	}
+	/**
+	 * Retrieves all main parameters of a park.
+	 *
+	 * @param parkName park name
+	 * @return list containing capacity, booking percentage and visit duration
+	 */
 	public ArrayList<Object> getParkParams(String parkName) {
 		ArrayList<Object> params = new ArrayList<>();
 
@@ -91,6 +140,13 @@ public class ParkDAO {
 		params.add(4);
 		return params;
 	}
+	/**
+	 * Updates the maximum capacity of a park.
+	 *
+	 * @param parkName park name
+	 * @param newCapacity new maximum capacity
+	 * @return true if the update succeeded, otherwise false
+	 */
 	public boolean updateParkCapacity(String parkName, int newCapacity) {
 		String q = "UPDATE parks SET max_capacity = ? WHERE park_name = ?";
 		try (PreparedStatement ps = connection.prepareStatement(q)) {
@@ -102,6 +158,18 @@ public class ParkDAO {
 			return false;
 		}
 	}
+	/**
+	 * Creates a park parameter change request.
+	 *
+	 * Only a park manager can create this request.
+	 *
+	 * @param parkName park name
+	 * @param newCapacity requested maximum capacity
+	 * @param newBookingPercent requested booking percentage
+	 * @param newVisitDurationHours requested visit duration
+	 * @param requestedBy employee who created the request
+	 * @return true if the request was created successfully, otherwise false
+	 */
 	public boolean createParkChangeRequest(String parkName, int newCapacity, int newBookingPercent,
 			int newVisitDurationHours, String requestedBy) {
 
@@ -129,6 +197,11 @@ public class ParkDAO {
 			return false;
 		}
 	}
+	/**
+	 * Retrieves all pending park change requests.
+	 *
+	 * @return list of pending park change requests
+	 */
 	public ArrayList<ArrayList<Object>> getPendingParkChangeRequests() {
 		ArrayList<ArrayList<Object>> list = new ArrayList<>();
 
@@ -160,6 +233,15 @@ public class ParkDAO {
 
 		return list;
 	}
+	/**
+	 * Approves a park change request and updates the park parameters.
+	 *
+	 * Only a department manager can approve this request.
+	 *
+	 * @param requestId request identifier
+	 * @param decisionBy employee who approved the request
+	 * @return true if the request was approved successfully, otherwise false
+	 */
 	public boolean approveParkChangeRequest(int requestId, String decisionBy) {
 		if (!employeeDAO.isEmployeeRole(decisionBy, "DEPT_MANAGER")) {
 			System.out.println("Only DEPT_MANAGER can approve park change requests.");
@@ -244,6 +326,15 @@ public class ParkDAO {
 			}
 		}
 	}
+	/**
+	 * Rejects a pending park change request.
+	 *
+	 * Only a department manager can reject this request.
+	 *
+	 * @param requestId request identifier
+	 * @param decisionBy employee who rejected the request
+	 * @return true if the request was rejected successfully, otherwise false
+	 */
 	public boolean rejectParkChangeRequest(int requestId, String decisionBy) {
 		if (!employeeDAO.isEmployeeRole(decisionBy, "DEPT_MANAGER")) {
 			System.out.println("Only DEPT_MANAGER can reject park change requests.");

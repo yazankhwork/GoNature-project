@@ -16,11 +16,28 @@ import client.network.ClientSession;
 
 import java.util.ArrayList;
 import java.util.Optional;
-
+/**
+ * Main login and connection screen of the GoNature client application.
+ *
+ * This screen allows users to connect to the server, log in as visitors,
+ * employees or guests, and register new visitor accounts.
+ *
+ * Depending on the user role, the appropriate dashboard is opened
+ * after successful authentication.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class ClientConnectionScreen extends Application {
-
+	/**
+	 * Current server IP address used by the client.
+	 */
 	public static String serverIP = "localhost";
-
+	/**
+	 * Creates and displays the connection and login interface.
+	 *
+	 * @param primaryStage primary JavaFX stage
+	 */
 	@Override
 	public void start(Stage primaryStage) {
 

@@ -15,18 +15,44 @@ import javafx.stage.Stage;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-
+/**
+ * Dashboard screen for entry workers in the GoNature system.
+ *
+ * This screen allows an entry worker to view the current number
+ * of visitors in the assigned park, check visitors in, check visitors out
+ * and admit walk-in visitors.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class EntryWorkerDashboard extends Application {
-
+	/**
+	 * Name of the currently logged-in entry worker.
+	 */
 	public static String loggedInEmpName = "Worker";
-
+	/**
+	 * Combo box containing the park assigned to the entry worker.
+	 */
 	private final ComboBox<String> parkCombo = new ComboBox<>();
+	/**
+	 * Label used to display operation results and status messages.
+	 */
 	private final Label result = new Label("Ready.");
-
+	/**
+	 * Sends a message request to the server.
+	 *
+	 * @param m message request
+	 * @return server response message
+	 * @throws Exception if communication with the server fails
+	 */
 	private static Message request(Message m) throws Exception {
 		return ClientSession.send(m);
 	}
-
+	/**
+	 * Creates and displays the entry worker dashboard.
+	 *
+	 * @param stage primary JavaFX stage
+	 */
 	@Override
 	public void start(Stage stage) {
 		stage.setTitle("GoNature - Entry Worker");

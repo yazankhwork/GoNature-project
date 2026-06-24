@@ -13,7 +13,8 @@ import java.io.Serializable;
  * This class implements {@link Serializable} so visitor objects can be
  * transferred between the client and server.
  *
- * @author Bolos Saad
+ * @author Group 4
+ * @version 1.0
  */
 public class Visitor implements Serializable {
 

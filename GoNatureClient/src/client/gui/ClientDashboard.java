@@ -18,33 +18,102 @@ import client.network.INetworkObserver;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
-
+/**
+ * Main dashboard of the GoNature client application.
+ *
+ * This screen allows visitors to create, update and cancel bookings,
+ * manage waiting-list requests, view notifications, check park availability
+ * and monitor their booking history.
+ *
+ * The dashboard also receives live server notifications using
+ * the Observer design pattern.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class ClientDashboard extends Application implements INetworkObserver {
-
+	/**
+	 * Identifier of the currently logged-in visitor.
+	 */
 	public static String loggedInVisitorId = "";
+	/**
+	 * Name of the currently logged-in visitor.
+	 */
 	public static String loggedInName = "";
+	/**
+	 * Indicates whether the current account belongs to a certified guide.
+	 */
 	public static boolean isAccountGuide = false;
+	/**
+	 * Indicates whether the current visitor has an active subscription.
+	 */
 	public static boolean isSubscriberAccount = false;
+	/**
+	 * Subscription number of the current visitor.
+	 */
 	public static String subscriptionNumber = "";
+	/**
+	 * Indicates whether the current session is a guest session.
+	 */
 	public static boolean isGuest = false;
+	/**
+	 * Number of family members covered by the subscription.
+	 */
 	public static int familyMembers = 1;
-
+	/**
+	 * Table displaying visitor bookings.
+	 */
 	private TableView<Booking> table = new TableView<>();
+	/**
+	 * Observable list used as the booking table data source.
+	 */
 	private ObservableList<Booking> dataList = FXCollections.observableArrayList();
+	/**
+	 * Label used to display operation results and status messages.
+	 */
 	private Label responseLabel = new Label("Ready");
-
+	/**
+	 * Park selector used for booking creation.
+	 */
 	private ComboBox<String> parkCombo = new ComboBox<>();
+	/**
+	 * Date selector used for booking reservations.
+	 */
 	private DatePicker datePicker = new DatePicker(LocalDate.now());
+	/**
+	 * Input field for visit time.
+	 */
 	private TextField timeInput = new TextField("10:00");
+	/**
+	 * Input field for number of visitors.
+	 */
 	private TextField visitorsInput = new TextField("1");
+	/**
+	 * Input field for visitor email address.
+	 */
 	private TextField emailInput = new TextField();
-	private TextField phoneInput = new TextField(); 
+	/**
+	 * Input field for visitor phone number.
+	 */
+	private TextField phoneInput = new TextField();
+	/**
+	 * Identifier of the currently selected booking.
+	 */
 	private int selectedBookingId = -1;
-
+	/**
+	 * Displays live park capacity and availability information.
+	 */
 	private Label liveCapacityLabel = new Label(
 			"Select park, date, and time, then click 'Select' to check availability.");
+	/**
+	 * Indicates whether the booking is for a guided group.
+	 */
 	private CheckBox chkIsGuide = new CheckBox("This visit is for a group with a guide");
-
+	/**
+	 * Creates and displays the main dashboard interface.
+	 *
+	 * @param primaryStage primary JavaFX stage
+	 */
 	@SuppressWarnings("unchecked")
 	@Override
 	public void start(Stage primaryStage) {
@@ -525,7 +594,11 @@ public class ClientDashboard extends Application implements INetworkObserver {
 
 		checkLiveCapacity();
 	}
-
+	/**
+	 * Handles asynchronous notifications received from the server.
+	 *
+	 * @param msg message received from the server
+	 */
 	@Override
 	public void onMessageReceived(Message msg) {
 		if (msg.getCommand().equals("SERVER_PUSH_NOTIFICATION")) {
@@ -537,7 +610,17 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			loadDataFromServer();
 		}
 	}
-
+	/**
+	 * Calculates the booking price according to visitor type,
+	 * subscription status and discount rules.
+	 *
+	 * @param totalVisitors number of visitors
+	 * @param visitorType visitor type
+	 * @param hasSubscription indicates whether the visitor has a subscription
+	 * @param isPrebooked indicates whether the booking was made in advance
+	 * @param isPrepaid indicates whether the booking was prepaid
+	 * @return calculated ticket price
+	 */
 	public static int calculatePrice(int totalVisitors, String visitorType, boolean hasSubscription,
 			boolean isPrebooked, boolean isPrepaid) {
 		double fullPricePerTicket = 30.0;
@@ -560,6 +643,12 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			finalPrice = finalPrice * 0.90;
 		return (int) Math.round(finalPrice);
 	}
+	/**
+	 * Retrieves the approved discount percentage for a specific park.
+	 *
+	 * @param parkName park name
+	 * @return approved discount percentage, or 0 if none exists
+	 */
 	private int getApprovedDiscountPercent(String parkName) {
 		try {
 			Message resp = ClientSession.send(new Message("GET_APPROVED_DISCOUNT", parkName));
@@ -574,7 +663,13 @@ public class ClientDashboard extends Application implements INetworkObserver {
 
 		return 0;
 	}
-
+	/**
+	 * Applies an approved park discount to the given price.
+	 *
+	 * @param price original price
+	 * @param discountPercent discount percentage
+	 * @return price after discount
+	 */
 	private int applyApprovedParkDiscount(int price, int discountPercent) {
 		if (discountPercent <= 0) {
 			return price;
@@ -582,7 +677,12 @@ public class ClientDashboard extends Application implements INetworkObserver {
 
 		return (int) Math.round(price * (1 - discountPercent / 100.0));
 	}
-
+	/**
+	 * Builds a text message describing the approved park discount.
+	 *
+	 * @param discountPercent discount percentage
+	 * @return discount description text, or an empty string if no discount exists
+	 */
 	private String approvedDiscountText(int discountPercent) {
 		if (discountPercent <= 0) {
 			return "";
@@ -590,7 +690,10 @@ public class ClientDashboard extends Application implements INetworkObserver {
 
 		return "\nApproved park discount applied: " + discountPercent + "%";
 	}
-
+	/**
+	 * Checks pending bookings scheduled for tomorrow and asks the visitor
+	 * to confirm arrival or cancel the booking.
+	 */
 	private void checkTomorrowBookings() {
 		LocalDate tomorrow = LocalDate.now().plusDays(1);
 		for (Booking b : dataList) {
@@ -614,7 +717,10 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		}
 		loadDataFromServer();
 	}
-
+	/**
+	 * Checks whether the visitor has an active waiting-list offer
+	 * and allows the visitor to claim or decline it.
+	 */
 	private void checkWaitingListInbox() {
 		try {
 			Message response = ClientSession.send(new Message("CHECK_WAITINGLIST", loggedInVisitorId));
@@ -669,7 +775,10 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		} catch (Exception ex) {
 		}
 	}
-
+	/**
+	 * Checks the current available capacity for the selected park,
+	 * date and time, and updates the capacity label.
+	 */
 	private void checkLiveCapacity() {
 		try {
 			if (datePicker.getValue() == null) {
@@ -716,7 +825,10 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			ex.printStackTrace();
 		}
 	}
-
+	/**
+	 * Loads the visitor's booking data from the server
+	 * and updates the bookings table.
+	 */
 	private void loadDataFromServer() {
 		try {
 			Message response = ClientSession.send(new Message("LOAD_DATA", loggedInVisitorId));
@@ -729,7 +841,12 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			responseLabel.setText("Connection Error.");
 		}
 	}
-
+	/**
+	 * Sends a command with data to the server and handles the response.
+	 *
+	 * @param command command name
+	 * @param data data object sent with the command
+	 */
 	private void sendCommandToServer(String command, Object data) {
 		try {
 			Message response = ClientSession.send(new Message(command, data));
@@ -770,6 +887,11 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			responseLabel.setText("Connection Error.");
 		}
 	}
+	/**
+	 * Loads and displays recent visitor notifications.
+	 *
+	 * @param showWhenEmpty true to show a message when no notifications exist
+	 */
 	@SuppressWarnings("unchecked")
 	private void showRecentNotifications(boolean showWhenEmpty) {
 		try {

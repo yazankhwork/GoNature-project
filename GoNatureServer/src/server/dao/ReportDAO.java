@@ -5,18 +5,48 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
-
+/**
+ * Handles report-related database operations in the GoNature system.
+ *
+ * This class generates reports about visitor types, detailed visits,
+ * park utilization and cancellations/no-shows.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class ReportDAO {
-
+	/**
+	 * Active database connection used for report queries.
+	 */
 	private final Connection connection;
+	/**
+	 * DAO used to retrieve park parameters required for reports.
+	 */
 	private final ParkDAO parkDAO;
+	/**
+	 * DAO used to retrieve booking information required for reports.
+	 */
 	private final BookingDAO bookingDAO;
-
+	/**
+	 * Creates a new ReportDAO instance.
+	 *
+	 * @param connection active database connection
+	 * @param parkDAO park DAO used for park data
+	 * @param bookingDAO booking DAO used for booking data
+	 */
 	public ReportDAO(Connection connection, ParkDAO parkDAO, BookingDAO bookingDAO) {
 		this.connection = connection;
 		this.parkDAO = parkDAO;
 		this.bookingDAO = bookingDAO;
 	}
+	/**
+	 * Generates a monthly report of visitors grouped by visit type.
+	 *
+	 * @param park park name
+	 * @param year report year
+	 * @param month report month
+	 * @return map containing visitor counts by type
+	 */
 	public java.util.HashMap<String, Integer> reportVisitorsByType(String park, int year, int month) {
 		java.util.HashMap<String, Integer> map = new java.util.HashMap<>();
 
@@ -58,6 +88,14 @@ public class ReportDAO {
 
 		return map;
 	}
+	/**
+	 * Generates a report showing days and hours when the park was not full.
+	 *
+	 * @param park park name
+	 * @param year report year
+	 * @param month report month
+	 * @return report rows containing date, peak visitors, capacity, remaining capacity and not-full hours
+	 */
 	public ArrayList<ArrayList<Object>> reportParkNotFull(String park, int year, int month) {
 		ArrayList<ArrayList<Object>> rows = new ArrayList<>();
 
@@ -99,6 +137,14 @@ public class ReportDAO {
 
 		return rows;
 	}
+	/**
+	 * Generates a detailed monthly visit report for a specific park.
+	 *
+	 * @param park park name
+	 * @param year report year
+	 * @param month report month
+	 * @return detailed visit report rows
+	 */
 	public ArrayList<ArrayList<Object>> reportDetailedVisits(String park, int year, int month) {
 		ArrayList<ArrayList<Object>> rows = new ArrayList<>();
 
@@ -152,6 +198,14 @@ public class ReportDAO {
 
 		return rows;
 	}
+	/**
+	 * Generates a monthly cancellation and no-show report.
+	 *
+	 * @param park park name, or "ALL" for all parks
+	 * @param year report year
+	 * @param month report month
+	 * @return report data including daily rows, total cancellations, total no-shows and average cancellations
+	 */
 	public ArrayList<Object> reportCancellations(String park, int year, int month) {
 		ArrayList<ArrayList<Object>> dailyRows = new ArrayList<>();
 

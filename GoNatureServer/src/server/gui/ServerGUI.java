@@ -14,13 +14,34 @@ import server.network.GoNatureServer;
 
 import java.io.OutputStream;
 import java.io.PrintStream;
-
+/**
+ * Graphical user interface for managing the GoNature server.
+ *
+ * This class allows the operator to start and stop the server,
+ * enter database connection details, choose the server port
+ * and view live server console output inside the application window.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class ServerGUI extends Application {
-
+	/**
+	 * Text area used to display live server console output.
+	 */
 	private TextArea consoleArea;
+	/**
+	 * Button used to start the server.
+	 */
 	private Button startBtn;
+	/**
+	 * Button used to stop the server.
+	 */
 	private Button stopBtn;
-
+	/**
+	 * Initializes and displays the server management window.
+	 *
+	 * @param primaryStage main JavaFX application stage
+	 */
 	@Override
 	public void start(Stage primaryStage) {
 		primaryStage.setTitle("GoNature - Server Manager");
@@ -98,14 +119,27 @@ public class ServerGUI extends Application {
 			System.exit(0);
 		});
 	}
-
+	/**
+	 * Redirects standard output and error streams to the GUI console area.
+	 */
 	private void redirectSystemStreams() {
 		OutputStream out = new OutputStream() {
+			/**
+			 * Writes a single byte to the GUI console.
+			 *
+			 * @param b byte to write
+			 */
 			@Override
 			public void write(int b) {
 				Platform.runLater(() -> consoleArea.appendText(String.valueOf((char) b)));
 			}
-
+			/**
+			 * Writes a byte array segment to the GUI console.
+			 *
+			 * @param b byte array
+			 * @param off starting offset
+			 * @param len number of bytes to write
+			 */
 			@Override
 			public void write(byte[] b, int off, int len) {
 				Platform.runLater(() -> consoleArea.appendText(new String(b, off, len)));
@@ -114,7 +148,11 @@ public class ServerGUI extends Application {
 		System.setOut(new PrintStream(out, true));
 		System.setErr(new PrintStream(out, true));
 	}
-
+	/**
+	 * Application entry point.
+	 *
+	 * @param args command-line arguments
+	 */
 	public static void main(String[] args) {
 		launch(args);
 	}

@@ -7,15 +7,49 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 import common.Booking;
-
+/**
+ * Handles waiting-list-related database operations in the GoNature system.
+ *
+ * This class manages waiting-list registration, queue processing,
+ * visitor notifications, expired offers, booking claims and
+ * waiting-list entry management.
+ *
+ * The waiting list follows a FIFO policy to ensure fair allocation
+ * of available booking slots.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class WaitingListDAO {
-
+	/**
+	 * Active database connection.
+	 */
 	private final Connection connection;
+	/**
+	 * DAO used for booking-related operations.
+	 */
 	private final BookingDAO bookingDAO;
+	/**
+	 * DAO used for park-related operations.
+	 */
 	private final ParkDAO parkDAO;
+	/**
+	 * DAO used for visitor-related operations.
+	 */
 	private final VisitorDAO visitorDAO;
+	/**
+	 * DAO used for notification-related operations.
+	 */
 	private final NotificationDAO notificationDAO;
-
+	/**
+	 * Creates a new WaitingListDAO instance.
+	 *
+	 * @param connection active database connection
+	 * @param bookingDAO booking DAO
+	 * @param parkDAO park DAO
+	 * @param visitorDAO visitor DAO
+	 * @param notificationDAO notification DAO
+	 */
 	public WaitingListDAO(Connection connection, BookingDAO bookingDAO, ParkDAO parkDAO, VisitorDAO visitorDAO,
 			NotificationDAO notificationDAO) {
 		this.connection = connection;
@@ -24,7 +58,12 @@ public class WaitingListDAO {
 		this.visitorDAO = visitorDAO;
 		this.notificationDAO = notificationDAO;
 	}
-
+	/**
+	 * Adds a booking request to the waiting list.
+	 *
+	 * @param b booking object
+	 * @return true if the request was added successfully, otherwise false
+	 */
 	public boolean enterWaitingList(Booking b) {
 		String query = "INSERT INTO waitinglist (visitor_id, park_name, visit_date, visit_time, visitors_count, visitor_type, email, telephone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 		try (PreparedStatement pstmt = connection.prepareStatement(query)) {
@@ -41,10 +80,15 @@ public class WaitingListDAO {
 			return false;
 		}
 	}
-
+	/**
+	 * Processes the waiting-list queue.
+	 *
+	 * This method removes expired entries, handles expired offers,
+	 * identifies available booking slots and sends notifications
+	 * to eligible visitors according to FIFO rules.
+	 */
 	public void manageWaitingListQueue() {
 		try {
-			// 1. מחיקת מי שהתאריך והשעה של הביקור שלו כבר עברו
 			String passedVisits = "SELECT waiting_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email, telephone "
 					+ "FROM waitinglist " + "WHERE TIMESTAMP(visit_date, visit_time) <= CURRENT_TIMESTAMP";
 
@@ -72,8 +116,7 @@ public class WaitingListDAO {
 					}
 				}
 			}
-			
-			// 2. פקיעת תוקף הצעות אחרי שעתיים (120 דקות)
+		
 			String expiredOffers = "SELECT waiting_id, visitor_id, park_name, visit_date, visit_time, visitors_count, email, telephone "
 					+ "FROM waitinglist " + "WHERE notified_time IS NOT NULL "
 					+ "AND TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) >= 120";
@@ -103,9 +146,6 @@ public class WaitingListDAO {
 					}
 				}
 			}
-
-			// 3. מציאת סלוטים "נעולים" - מישהו בסלוט הזה קיבל הודעה ועדיין חושב!
-			// אם הסלוט נעול, אנחנו עוצרים את התור ולא שולחים הודעות לאף אחד אחריו.
 			HashMap<String, Boolean> lockedSlots = new HashMap<>();
 			String activeNotificationsQuery = "SELECT DISTINCT park_name, visit_date, visit_time FROM waitinglist WHERE notified_time IS NOT NULL";
 			
@@ -118,7 +158,6 @@ public class WaitingListDAO {
 				}
 			}
 
-			// 4. ניהול רשימת ההמתנה למי שעדיין לא קיבל הודעה (FIFO חמור ביותר)
 			String getWaiting = "SELECT * FROM waitinglist " + "WHERE notified_time IS NULL "
 					+ "AND TIMESTAMP(visit_date, visit_time) > CURRENT_TIMESTAMP "
 					+ "ORDER BY visit_date ASC, visit_time ASC, request_time ASC, waiting_id ASC";
@@ -135,8 +174,6 @@ public class WaitingListDAO {
 					String telephone = rs.getString("telephone");
 
 					String slotKey = park + "_" + date + "_" + time;
-
-					// בדיקה קריטית: אם הסלוט נעול, הבן אדם הזה לא רשאי לקבל הודעה! קופצים להבא.
 					if (lockedSlots.getOrDefault(slotKey, false)) {
 						continue;
 					}
@@ -145,7 +182,6 @@ public class WaitingListDAO {
 					int max = parkDAO.getBookableCapacity(park);
 					int available = Math.max(0, max - currentVis);
 
-					// בודקים אם יש מקום לראשון בתור (והיחיד שאנחנו מתייחסים אליו עכשיו)
 					if (visitors <= available) {
 						String updateQ = "UPDATE waitinglist SET notified_time = CURRENT_TIMESTAMP WHERE waiting_id = ?";
 
@@ -160,14 +196,10 @@ public class WaitingListDAO {
 
 								String phoneToSend = (telephone != null && !telephone.isEmpty()) ? telephone : visitorDAO.getVisitorPhone(visitorId);
 								notificationDAO.createNotification(visitorId, null, "WAITING_LIST_AVAILABLE", message, email, phoneToSend);
-
-								// נעלנו את הסלוט! אי אפשר לשלוח לאנשים הבאים בתור אחריו עד שהוא יחליט.
 								lockedSlots.put(slotKey, true);
 							}
 						}
 					} else {
-						// אין כרגע מספיק מקום לראשון.
-						// ננעל את הסלוט כדי שהאנשים אחריו בתור (שאולי צריכים פחות מקום) לא יעקפו אותו!
 						lockedSlots.put(slotKey, true);
 					}
 				}
@@ -176,7 +208,12 @@ public class WaitingListDAO {
 			e.printStackTrace();
 		}
 	}
-
+	/**
+	 * Retrieves the active waiting-list offer of a visitor.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return waiting-list offer information, or null if none exists
+	 */
 	public ArrayList<Object> getWaitingListMessage(String visitorId) {
 		String query = "SELECT *, "
 				+ "120 - TIMESTAMPDIFF(MINUTE, notified_time, CURRENT_TIMESTAMP) AS mins_left "
@@ -206,11 +243,23 @@ public class WaitingListDAO {
 		}
 		return null;
 	}
-
+	/**
+	 * Claims a waiting-list offer and converts it into a booking.
+	 *
+	 * @param waitingId waiting-list entry identifier
+	 * @param price booking price
+	 * @return true if the offer was claimed successfully, otherwise false
+	 */
 	public boolean payAndClaimWaitingList(int waitingId, int price) {
 		return payAndClaimWaitingListAndReturnCode(waitingId, price) != null;
 	}
-
+	/**
+	 * Claims a waiting-list offer, creates a booking and returns a confirmation code.
+	 *
+	 * @param waitingId waiting-list entry identifier
+	 * @param price booking price
+	 * @return confirmation code if successful, otherwise null
+	 */
 	public String payAndClaimWaitingListAndReturnCode(int waitingId, int price) {
 		try {
 			String getQ = "SELECT * FROM waitinglist "
@@ -258,7 +307,11 @@ public class WaitingListDAO {
 
 		return null;
 	}
-
+	/**
+	 * Declines a waiting-list offer and removes it from the waiting list.
+	 *
+	 * @param waitingId waiting-list entry identifier
+	 */
 	public void declineWaitingList(int waitingId) {
 		try (PreparedStatement ps = connection.prepareStatement(
 		        "DELETE FROM waitinglist WHERE waiting_id = ?")) {
@@ -268,7 +321,12 @@ public class WaitingListDAO {
 			e.printStackTrace();
 		}
 	}
-
+	/**
+	 * Retrieves waiting-list entries of a visitor as booking objects.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return list of waiting-list entries represented as bookings
+	 */
 	public ArrayList<Booking> getWaitingEntriesAsBookings(String visitorId) {
 		ArrayList<Booking> list = new ArrayList<>();
 
@@ -312,7 +370,13 @@ public class WaitingListDAO {
 
 		return list;
 	}
-
+	/**
+	 * Removes a waiting-list entry for a specific visitor.
+	 *
+	 * @param waitingId waiting-list entry identifier
+	 * @param visitorId visitor identifier
+	 * @return true if the entry was removed successfully, otherwise false
+	 */
 	public boolean removeWaitingEntry(int waitingId, String visitorId) {
 		String query = "DELETE FROM waitinglist "
 				+ "WHERE waiting_id = ? "

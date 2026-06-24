@@ -15,30 +15,82 @@ import server.database.DatabaseController;
 
 import ocsf.server.AbstractServer;
 import ocsf.server.ConnectionToClient;
-
+/**
+ * Main server component of the GoNature system.
+ *
+ * This class is responsible for managing client connections,
+ * handling incoming requests, communicating with the database,
+ * processing bookings, waiting lists, reports and park operations.
+ *
+ * The server is based on the OCSF framework and supports
+ * multiple concurrent clients.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class GoNatureServer extends AbstractServer {
-
+	/**
+	 * Default port used by the server when no custom port is provided.
+	 */
 	private static final int DEFAULT_PORT = 5555;
+	/**
+	 * Holds the currently running server instance.
+	 */
 	private static GoNatureServer runningServer;
+	/**
+	 * Stores the last error message that occurred during server startup or execution.
+	 */
 	private static String lastError = "";
-
+	/**
+	 * Stores currently logged-in users and their client connections.
+	 * Used to prevent the same user from logging in more than once at the same time.
+	 */
 	private final ConcurrentHashMap<String, ConnectionToClient> loggedInUsers = new ConcurrentHashMap<>();
-
+	/**
+	 * Returns the last error message recorded by the server.
+	 *
+	 * @return last error message
+	 */
 	public static String getLastError() {
 		return lastError;
 	}
-
+	/**
+	 * Database controller used by the server to perform database operations.
+	 */
 	private final DatabaseController dbController = new DatabaseController();
+	/**
+	 * Scheduler used for periodic background tasks such as
+	 * waiting list management and booking confirmation processing.
+	 */
 	private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-
+	/**
+	 * Creates a new GoNature server.
+	 *
+	 * @param port server listening port
+	 */
 	public GoNatureServer(int port) {
 		super(port);
 	}
-
+	/**
+	 * Starts the server using the default port.
+	 *
+	 * @param host database host
+	 * @param user database username
+	 * @param pass database password
+	 * @return true if the server started successfully, otherwise false
+	 */
 	public static synchronized boolean startServer(String host, String user, String pass) {
 		return startServer(host, user, pass, DEFAULT_PORT);
 	}
-
+	/**
+	 * Starts the server and establishes a database connection.
+	 *
+	 * @param host database host
+	 * @param user database username
+	 * @param pass database password
+	 * @param port server listening port
+	 * @return true if the server started successfully, otherwise false
+	 */
 	public static synchronized boolean startServer(String host, String user, String pass, int port) {
 		if (runningServer != null) {
 			lastError = "Server is already running.";
@@ -65,7 +117,11 @@ public class GoNatureServer extends AbstractServer {
 			return false;
 		}
 	}
-
+	/**
+	 * Stops the running server and releases resources.
+	 *
+	 * @return true if the server stopped successfully, otherwise false
+	 */
 	public static synchronized boolean stopServer() {
 		if (runningServer == null) {
 			System.out.println("Server is not running.");
@@ -84,35 +140,60 @@ public class GoNatureServer extends AbstractServer {
 			return false;
 		}
 	}
-
+	/**
+	 * Stops all scheduled background tasks.
+	 */
 	private void shutdownScheduler() {
 		if (!scheduler.isShutdown()) {
 			scheduler.shutdownNow();
 		}
 	}
-
+	/**
+	 * Connects the server to the database.
+	 *
+	 * @param host database host
+	 * @param user database username
+	 * @param pass database password
+	 * @return true if the connection succeeded, otherwise false
+	 */
 	public boolean connectDB(String host, String user, String pass) {
 		return dbController.connectToDatabase(host, user, pass);
 	}
-
+	/**
+	 * Called when the server starts listening for client connections.
+	 * Starts scheduled background tasks for waiting list management
+	 * and booking confirmation processing.
+	 */
 	@Override
 	protected void serverStarted() {
 		System.out.println("Server listening on port " + getPort());
 		scheduler.scheduleAtFixedRate(dbController::manageWaitingListQueue, 0, 1, TimeUnit.MINUTES);
 		scheduler.scheduleAtFixedRate(dbController::processBookingConfirmations, 0, 1, TimeUnit.MINUTES);
 	}
-
+	/**
+	 * Called when the server stops.
+	 * Shuts down the scheduled background tasks.
+	 */
 	@Override
 	protected void serverStopped() {
 		System.out.println("Server stopped.");
 		shutdownScheduler();
 	}
-
+	/**
+	 * Called when a new client connects to the server.
+	 *
+	 * @param client the connected client
+	 */
 	@Override
 	protected void clientConnected(ConnectionToClient client) {
 		System.out.println("Client connected: " + client);
 	}
-
+	/**
+	 * Called when a client disconnects from the server.
+	 * Removes the user from the active login list if needed.
+	 *
+	 * @param client the disconnected client
+	 */
 	@Override
 	protected synchronized void clientDisconnected(ConnectionToClient client) {
 		System.out.println("Client disconnected: " + client);
@@ -122,7 +203,19 @@ public class GoNatureServer extends AbstractServer {
 			System.out.println("User " + userId + " removed from active logins (Disconnected).");
 		}
 	}
-
+	/**
+	 * Handles messages received from connected clients.
+	 *
+	 * This method checks the incoming message type, extracts the command and data,
+	 * performs the matching server-side operation, communicates with the database
+	 * when needed, and sends an appropriate response back to the client.
+	 *
+	 * Supported operations include login, registration, bookings, waiting list
+	 * management, park changes, check-in, check-out, casual visits and reports.
+	 *
+	 * @param msg message object received from the client
+	 * @param client client connection that sent the message
+	 */
 	@Override
 	protected void handleMessageFromClient(Object msg, ConnectionToClient client) {
 		Message response = new Message("ERROR", "No response was created.");
@@ -630,7 +723,12 @@ public class GoNatureServer extends AbstractServer {
 
 		sendSafe(client, response);
 	}
-
+	/**
+	 * Sends a response message to a client while handling possible IO errors.
+	 *
+	 * @param client destination client connection
+	 * @param response response message to send
+	 */
 	private void sendSafe(ConnectionToClient client, Message response) {
 		try {
 			client.sendToClient(response);

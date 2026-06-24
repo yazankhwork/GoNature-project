@@ -1,15 +1,35 @@
 package server.dao;
 
 import java.sql.*;
-
+/**
+ * Handles visitor-related database operations in the GoNature system.
+ *
+ * This class is responsible for visitor login, registration,
+ * guide registration, subscription management and visitor information queries.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class VisitorDAO {
-
+	/**
+	 * Active database connection used for visitor queries.
+	 */
 	private final Connection connection;
-
+	/**
+	 * Creates a new VisitorDAO instance.
+	 *
+	 * @param connection active database connection
+	 */
 	public VisitorDAO(Connection connection) {
 		this.connection = connection;
 	}
-
+	/**
+	 * Authenticates a visitor using username and password.
+	 *
+	 * @param username visitor username
+	 * @param password visitor password
+	 * @return login result data containing status, full name, subscription number and visitor ID
+	 */
 	public String[] loginVisitor(String username, String password) {
 		String query = "SELECT visitor_id, is_guide, full_name FROM visitors WHERE username = ? AND password = ?";
 		try (PreparedStatement pstmt = connection.prepareStatement(query)) {
@@ -36,7 +56,16 @@ public class VisitorDAO {
 			return new String[] { "ERROR", null, "NONE", null };
 		}
 	}
-
+	/**
+	 * Registers a new regular visitor in the system.
+	 *
+	 * @param visitorId visitor identifier
+	 * @param username visitor username
+	 * @param password visitor password
+	 * @param email visitor email address
+	 * @param phone visitor phone number
+	 * @return registration result message
+	 */
 	public String registerVisitor(String visitorId, String username, String password, String email, String phone) {
 		String checkQuery = "SELECT visitor_id FROM visitors WHERE visitor_id = ? OR username = ?";
 		try (PreparedStatement checkStmt = connection.prepareStatement(checkQuery)) {
@@ -62,7 +91,14 @@ public class VisitorDAO {
 		}
 		return "REGISTER_FAILED";
 	}
-
+	/**
+	 * Registers a visitor as a guide or updates an existing guide account.
+	 *
+	 * @param visitorId guide identifier
+	 * @param password guide password
+	 * @param username guide username
+	 * @return operation result message
+	 */
 	public String registerOrUpdateGuide(String visitorId, String password, String username) {
 		String updateQuery = "INSERT INTO visitors (visitor_id, username, password, email, is_guide, full_name) VALUES (?, ?, ?, ?, 1, ?) "
 				+ "ON DUPLICATE KEY UPDATE is_guide=1, password=?, username=?";
@@ -81,7 +117,12 @@ public class VisitorDAO {
 		}
 		return "FAILED";
 	}
-
+	/**
+	 * Checks whether a visitor is registered as a guide.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return true if the visitor is a guide, otherwise false
+	 */
 	public boolean isVisitorGuide(String visitorId) {
 		String query = "SELECT is_guide FROM visitors WHERE visitor_id = ?";
 
@@ -99,7 +140,12 @@ public class VisitorDAO {
 
 		return false;
 	}
-
+	/**
+	 * Retrieves the phone number of a visitor.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return visitor phone number, or null if not found
+	 */
 	public String getVisitorPhone(String visitorId) {
 		String q = "SELECT phone FROM visitors WHERE visitor_id = ?";
 
@@ -117,7 +163,19 @@ public class VisitorDAO {
 
 		return null;
 	}
-
+	/**
+	 * Creates a new subscription for a visitor and updates visitor contact details.
+	 *
+	 * @param visitorId visitor identifier
+	 * @param firstName subscriber first name
+	 * @param lastName subscriber last name
+	 * @param phone subscriber phone number
+	 * @param email subscriber email address
+	 * @param familyMembers number of family members in the subscription
+	 * @param paymentMethod payment method
+	 * @param creditCard credit card details
+	 * @return generated subscription ID, or -1 if creation failed
+	 */
 	public int buySubscription(String visitorId, String firstName, String lastName, String phone, String email,
 			int familyMembers, String paymentMethod, String creditCard) {
 
@@ -159,7 +217,12 @@ public class VisitorDAO {
 
 		return -1;
 	}
-
+	/**
+	 * Checks whether a visitor has an active subscription.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return true if the visitor has a subscription, otherwise false
+	 */
 	public boolean isVisitorSubscriber(String visitorId) {
 		String query = "SELECT sub_id FROM subscriptions WHERE visitor_id = ?";
 

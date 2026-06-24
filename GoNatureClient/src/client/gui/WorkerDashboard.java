@@ -13,12 +13,26 @@ import common.Message;
 import client.network.ClientSession;
 
 import java.util.ArrayList;
-
+/**
+ * Dashboard screen for service representatives in the GoNature system.
+ *
+ * This screen allows service representatives to register family
+ * subscriptions and manage certified guide registrations.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class WorkerDashboard extends Application {
-
+	/**
+	 * Name of the currently logged-in service representative.
+	 */
 	public static String loggedInEmpName = "Representative";
-
 	@Override
+	/**
+	 * Creates and displays the service representative dashboard.
+	 *
+	 * @param primaryStage primary JavaFX stage
+	 */
 	public void start(Stage primaryStage) {
 		primaryStage.setTitle("GoNature - Service Representative Dashboard");
 

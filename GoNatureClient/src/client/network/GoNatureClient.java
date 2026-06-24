@@ -10,29 +10,60 @@ import java.util.concurrent.TimeUnit;
 import common.Message;
 import javafx.application.Platform;
 import ocsf.client.AbstractClient;
-
+/**
+ * Client-side network communication class for the GoNature system.
+ *
+ * This class manages communication with the server, sends requests,
+ * receives responses and supports asynchronous server push messages
+ * using the Observer design pattern.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class GoNatureClient extends AbstractClient {
-
+	/**
+	 * Queue used to store synchronous responses received from the server.
+	 */
 	private final BlockingQueue<Message> responses = new ArrayBlockingQueue<>(1);
-	
-	// --- OBSERVER DESIGN PATTERN: List of Subscribers ---
+	/**
+	 * List of observers subscribed to asynchronous network messages.
+	 */
 	private final List<INetworkObserver> observers = new ArrayList<>();
-
+	/**
+	 * Creates a new GoNature client connection.
+	 *
+	 * @param host server host address
+	 * @param port server port
+	 */
 	public GoNatureClient(String host, int port) {
 		super(host, port);
 	}
-
-	// --- OBSERVER DESIGN PATTERN: Attach / Detach ---
+	/**
+	 * Adds an observer to receive asynchronous server messages.
+	 *
+	 * @param observer observer to add
+	 */
 	public void attachObserver(INetworkObserver observer) {
 		if (!observers.contains(observer)) {
 			observers.add(observer);
 		}
 	}
-
+	/**
+	 * Removes an observer from the observer list.
+	 *
+	 * @param observer observer to remove
+	 */
 	public void detachObserver(INetworkObserver observer) {
 		observers.remove(observer);
 	}
-
+	/**
+	 * Handles messages received from the server.
+	 *
+	 * Server push messages are sent to registered observers,
+	 * while regular response messages are stored in the response queue.
+	 *
+	 * @param msg message received from the server
+	 */
 	@Override
 	protected void handleMessageFromServer(Object msg) {
 		if (msg instanceof Message) {
@@ -50,7 +81,13 @@ public class GoNatureClient extends AbstractClient {
 			}
 		}
 	}
-
+	/**
+	 * Sends a request to the server and waits for a response.
+	 *
+	 * @param request request message
+	 * @return response message received from the server
+	 * @throws IOException if no response is received or communication fails
+	 */
 	public synchronized Message sendAndWait(Message request) throws IOException {
 		responses.clear();
 		sendToServer(request);
@@ -65,7 +102,11 @@ public class GoNatureClient extends AbstractClient {
 			throw new IOException("Interrupted while waiting for the server.");
 		}
 	}
-
+	/**
+	 * Handles connection exceptions between the client and server.
+	 *
+	 * @param exception connection exception
+	 */
 	@Override
 	protected void connectionException(Exception exception) {
 		System.err.println("Connection to server lost: " + exception.getMessage());

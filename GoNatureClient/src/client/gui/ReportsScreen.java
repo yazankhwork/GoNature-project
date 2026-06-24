@@ -25,19 +25,56 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-
+/**
+ * Dashboard screen for department managers in the GoNature system.
+ *
+ * This screen allows department managers to generate reports,
+ * monitor park capacity, review park change requests and
+ * approve or reject discount requests.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class ReportsScreen extends Application {
-
+	/**
+	 * Park selector used for report generation.
+	 */
 	private final ComboBox<String> parkCombo = new ComboBox<>();
+	/**
+	 * Month selector used for reports.
+	 */
 	private final ComboBox<Integer> monthCombo = new ComboBox<>();
+	/**
+	 * Year selector used for reports.
+	 */
 	private final ComboBox<Integer> yearCombo = new ComboBox<>();
+	/**
+	 * Container used to display charts and report results.
+	 */
 	private final VBox chartHolder = new VBox(10);
+	/**
+	 * Option for generating cancellation reports for all parks.
+	 */
 	private final CheckBox allParksCancelCheck = new CheckBox("All parks for cancellations");
+	/**
+	 * Displays current live park capacity information.
+	 */
 	private final Label liveCapacityLabel = new Label("Live capacity: -");
+	/**
+	 * Sends a request to the server.
+	 *
+	 * @param m request message
+	 * @return server response message
+	 * @throws Exception if communication fails
+	 */
 	private static Message request(Message m) throws Exception {
 		return ClientSession.send(m);
 	}
-
+	/**
+	 * Creates and displays the reports dashboard.
+	 *
+	 * @param stage primary JavaFX stage
+	 */
 	@Override
 	public void start(Stage stage) {
 		stage.setTitle("GoNature - Department Manager Reports");
@@ -112,6 +149,9 @@ public class ReportsScreen extends Application {
 		stage.setOnCloseRequest(e -> refreshTimer.stop());
 	}
 	@SuppressWarnings("unchecked")
+	/**
+	 * Retrieves and displays current live park capacity information.
+	 */
 	private void updateLiveCapacity() {
 		try {
 			String parkName = parkCombo.getValue();
@@ -140,7 +180,11 @@ public class ReportsScreen extends Application {
 			liveCapacityLabel.setText("Live capacity: connection error.");
 		}
 	}
-
+	/**
+	 * Creates a standard report filter.
+	 *
+	 * @return report filter data
+	 */
 	private ArrayList<Object> filter() {
 		ArrayList<Object> data = new ArrayList<>();
 		data.add(parkCombo.getValue());
@@ -148,6 +192,11 @@ public class ReportsScreen extends Application {
 		data.add(monthCombo.getValue());
 		return data;
 	}
+	/**
+	 * Creates a cancellation report filter.
+	 *
+	 * @return cancellation report filter data
+	 */
 	private ArrayList<Object> cancellationFilter() {
 		ArrayList<Object> data = new ArrayList<>();
 
@@ -163,6 +212,9 @@ public class ReportsScreen extends Application {
 	}
 
 	@SuppressWarnings("unchecked")
+	/**
+	 * Generates and displays the monthly visitors report.
+	 */
 	private void showVisitsReport() {
 		try {
 			Message resp = request(new Message("REPORT_VISITS", filter()));
@@ -198,6 +250,9 @@ public class ReportsScreen extends Application {
 		}
 	}
 	@SuppressWarnings("unchecked")
+	/**
+	 * Generates and displays the detailed visits report.
+	 */
 	private void showDetailedVisitsReport() {
 		try {
 			Message resp = request(new Message("REPORT_DETAILED_VISITS", filter()));
@@ -249,6 +304,9 @@ public class ReportsScreen extends Application {
 	}
 
 	@SuppressWarnings("unchecked")
+	/**
+	 * Generates and displays the cancellations and no-show report.
+	 */
 	private void showCancellationsReport() {
 		try {
 			Message resp = request(new Message("REPORT_CANCELLATIONS", cancellationFilter()));
@@ -310,6 +368,9 @@ public class ReportsScreen extends Application {
 		}
 	}
 	@SuppressWarnings("unchecked")
+	/**
+	 * Displays pending park change requests and allows approval or rejection.
+	 */
 	private void showParkChangeRequests() {
 		try {
 			Message resp = request(new Message("GET_PENDING_PARK_CHANGE_REQUESTS", null));
@@ -403,6 +464,9 @@ public class ReportsScreen extends Application {
 		}
 	}
 	@SuppressWarnings("unchecked")
+	/**
+	 * Displays pending discount requests and allows approval or rejection.
+	 */
 	private void showDiscountRequests() {
 		try {
 			Message resp = request(new Message("GET_PENDING_DISCOUNT_REQUESTS", null));

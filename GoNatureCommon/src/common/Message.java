@@ -12,7 +12,8 @@ import java.io.Serializable;
  * This class implements {@link Serializable} so that Message objects can be
  * transmitted through ObjectInputStream and ObjectOutputStream.
  *
- * @author Bolos Saad
+ * @author Group 4
+ * @version 1.0
  */
 public class Message implements Serializable {
 
