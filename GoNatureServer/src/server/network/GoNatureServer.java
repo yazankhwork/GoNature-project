@@ -352,8 +352,12 @@ public class GoNatureServer extends AbstractServer {
 			}
 			
 			case "REGISTER_GUEST": {
-				String id = (String) data;
-				String res = dbController.registerGuest(id);
+				@SuppressWarnings("unchecked")
+				ArrayList<String> guestData = (ArrayList<String>) data;
+				String id = guestData.get(0);
+				String email = guestData.get(1);
+				String phone = guestData.get(2);
+				String res = dbController.registerGuest(id, email, phone);
 				response = new Message("GUEST_REGISTER_RESPONSE", res);
 				break;
 			}

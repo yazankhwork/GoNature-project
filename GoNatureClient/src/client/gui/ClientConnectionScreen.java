@@ -5,7 +5,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -184,29 +183,37 @@ public class ClientConnectionScreen extends Application {
 		});
 
 
+		// --- לוגיקת רישום האורח החדשה בלחיצה אחת ---
 		btnGuest.setOnAction(e -> {
 			String id = visIdField.getText().trim();
-			if (id.isEmpty() || !id.matches("\\d{9}")) {
+			if (!id.matches("\\d{9}")) {
 				statusLabel.setText("Valid 9-digit ID required for Guest Login!");
 				return;
 			}
-			
+
 			try {
-				Message resp = ClientSession.send(new Message("REGISTER_GUEST", id));
+				ArrayList<String> guestData = new ArrayList<>();
+				guestData.add(id);
+				guestData.add(""); // אימייל ריק, יעודכן ב-Edit Profile
+				guestData.add(""); // טלפון ריק, יעודכן ב-Edit Profile
+
+				Message resp = ClientSession.send(new Message("REGISTER_GUEST", guestData));
 				String serverStatus = (String) resp.getData();
 
 				if ("ALREADY_EXISTS".equals(serverStatus)) {
-					statusLabel.setText("ID already registered! Please use 'Visitor Login'.");
+					statusLabel.setText("ID has previous orders! Please use 'Visitor Login'.");
 					return;
 				} else if ("REGISTERED".equals(serverStatus)) {
 					ClientDashboard.loggedInVisitorId = id;
 					ClientDashboard.loggedInName = "Guest";
+					ClientDashboard.loggedInEmail = ""; 
+					ClientDashboard.loggedInPhone = ""; 
 					ClientDashboard.isGuest = true;
 					ClientDashboard.isAccountGuide = false;
 					ClientDashboard.isSubscriberAccount = false;
 					ClientDashboard.subscriptionNumber = "NONE";
 					ClientDashboard.familyMembers = 1;
-					
+
 					primaryStage.close();
 					new ClientDashboard().start(new Stage());
 				} else {
@@ -289,6 +296,8 @@ public class ClientConnectionScreen extends Application {
 
 					ClientDashboard.loggedInVisitorId = id;
 					ClientDashboard.loggedInName = name;
+					ClientDashboard.loggedInEmail = data.get(2); 
+					ClientDashboard.loggedInPhone = data.get(3); 
 					ClientDashboard.isGuest = false;
 					ClientDashboard.isAccountGuide = "Certified Guide".equals(type);
 

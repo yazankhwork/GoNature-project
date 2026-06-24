@@ -42,6 +42,14 @@ public class ClientDashboard extends Application implements INetworkObserver {
 	 */
 	public static String loggedInName = "";
 	/**
+	 * Email of the currently logged-in visitor.
+	 */
+	public static String loggedInEmail = "";
+	/**
+	 * Phone number of the currently logged-in visitor.
+	 */
+	public static String loggedInPhone = "";
+	/**
 	 * Indicates whether the current account belongs to a certified guide.
 	 */
 	public static boolean isAccountGuide = false;
@@ -151,14 +159,16 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		visitorsInput.setStyle("-fx-border-color: #81c784; -fx-background-radius: 5px; -fx-border-radius: 5px;");
 		
 		emailInput.setPromptText("Click 'Edit Profile' to set");
+		emailInput.setText("N/A".equals(loggedInEmail) ? "" : loggedInEmail);
 		emailInput.setEditable(false);
 		emailInput.setFocusTraversable(false);
-		emailInput.setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #a5d6a7; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-text-fill: #388e3c; -fx-font-weight: bold;");
+		emailInput.setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #a5d6a7; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-text-fill: #1b5e20; -fx-font-weight: bold;");
 		
 		phoneInput.setPromptText("Click 'Edit Profile' to set");
+		phoneInput.setText("N/A".equals(loggedInPhone) ? "" : loggedInPhone);
 		phoneInput.setEditable(false);
 		phoneInput.setFocusTraversable(false);
-		phoneInput.setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #a5d6a7; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-text-fill: #388e3c; -fx-font-weight: bold;");
+		phoneInput.setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #a5d6a7; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-text-fill: #1b5e20; -fx-font-weight: bold;");
 		
 		Button btnProfile = new Button("Edit Profile");
 		btnProfile.setStyle("-fx-background-color: #8e24aa; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
@@ -179,7 +189,6 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		}
 		if (isGuest) {
 			welcomeLabel.setText("🌿 Welcome, Guest (" + loggedInVisitorId + ")");
-			btnProfile.setDisable(true); 
 		}
 
 		HBox rightAlign = new HBox(10, btnProfile, btnShowPrices, btnNotifications, btnLogout);
@@ -275,7 +284,6 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		HBox buttonBox = new HBox(15, btnSelect, btnAdd, btnUpdate, btnCancel);
 		buttonBox.setPadding(new Insets(10, 0, 10, 0));
 
-		// --- Colorful View Pricing List ---
 		btnShowPrices.setOnAction(e -> {
 			Alert pricesAlert = new Alert(Alert.AlertType.INFORMATION);
 			pricesAlert.setTitle("GoNature Pricing List");
@@ -610,8 +618,8 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			fetchProfileContact(); 
 		});
 
+		// פה הורדנו את ה-Disable לכפתור המחירים, עכשיו האורח יוכל לראות את המחירים!
 		if (isGuest) {
-			btnShowPrices.setDisable(true);
 			btnNotifications.setDisable(true);
 			btnUpdate.setDisable(true);
 			btnCancel.setDisable(true);
@@ -644,8 +652,10 @@ public class ClientDashboard extends Application implements INetworkObserver {
 				@SuppressWarnings("unchecked")
 				ArrayList<String> data = (ArrayList<String>) infoResp.getData();
 				loggedInName = data.get(1);
-				emailInput.setText("N/A".equals(data.get(2)) ? "" : data.get(2));
-				phoneInput.setText("N/A".equals(data.get(3)) ? "" : data.get(3));
+				loggedInEmail = data.get(2);
+				loggedInPhone = data.get(3);
+				emailInput.setText("N/A".equals(loggedInEmail) ? "" : loggedInEmail);
+				phoneInput.setText("N/A".equals(loggedInPhone) ? "" : loggedInPhone);
 			}
 		} catch (Exception ex) {}
 	}
@@ -678,7 +688,7 @@ public class ClientDashboard extends Application implements INetworkObserver {
 				
 				Dialog<ArrayList<String>> dialog = new Dialog<>();
 				dialog.setTitle("Edit Profile");
-				dialog.setHeaderText(null); // Custom header inside content
+				dialog.setHeaderText(null); 
 				
 				ButtonType saveBtnType = new ButtonType("Save Changes", ButtonBar.ButtonData.OK_DONE);
 				dialog.getDialogPane().getButtonTypes().addAll(saveBtnType, ButtonType.CANCEL);
@@ -732,7 +742,7 @@ public class ClientDashboard extends Application implements INetworkObserver {
 				
 				profileCard.getChildren().addAll(title, subTitle, new Separator(), grid);
 				dialog.getDialogPane().setContent(profileCard);
-				dialog.getDialogPane().setStyle("-fx-background-color: transparent;"); // To show the rounded corners cleanly
+				dialog.getDialogPane().setStyle("-fx-background-color: transparent;");
 				
 				dialog.setResultConverter(dialogButton -> {
 					if (dialogButton == saveBtnType) {
@@ -756,8 +766,10 @@ public class ClientDashboard extends Application implements INetworkObserver {
 						Message updateResp = ClientSession.send(new Message("UPDATE_PROFILE", newInfo));
 						if ("PROFILE_UPDATED".equals(updateResp.getCommand())) {
 							loggedInName = newInfo.get(1);
-							emailInput.setText(newInfo.get(2));
-							phoneInput.setText(newInfo.get(3));
+							loggedInEmail = newInfo.get(2);
+							loggedInPhone = newInfo.get(3);
+							emailInput.setText(loggedInEmail);
+							phoneInput.setText(loggedInPhone);
 							welcomeLabel.setText("🌿 Welcome, " + loggedInName + (isSubscriberAccount ? " (Sub #" + subscriptionNumber + ")" : ""));
 							new Alert(Alert.AlertType.INFORMATION, "Profile updated successfully!").showAndWait();
 						} else {

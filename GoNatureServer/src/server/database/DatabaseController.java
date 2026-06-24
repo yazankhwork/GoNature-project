@@ -108,10 +108,12 @@ public class DatabaseController {
 	 * Registers a guest visitor in the database.
 	 *
 	 * @param visitorId visitor identifier
+	 * @param email visitor email
+	 * @param phone visitor phone number
 	 * @return String status: ALREADY_EXISTS, REGISTERED, or FAILED
 	 */
-	public String registerGuest(String visitorId) {
-		return visitorDAO.registerGuest(visitorId);
+	public String registerGuest(String visitorId, String email, String phone) {
+		return visitorDAO.registerGuest(visitorId, email, phone);
 	}
 	/**
 	 * Updates a visitor's profile information.
