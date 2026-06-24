@@ -148,6 +148,7 @@ public class ServerGUI extends Application {
 		System.setOut(new PrintStream(out, true));
 		System.setErr(new PrintStream(out, true));
 	}
+<<<<<<< HEAD
 	/**
 	 * Application entry point.
 	 *
@@ -156,4 +157,8 @@ public class ServerGUI extends Application {
 	public static void main(String[] args) {
 		launch(args);
 	}
+=======
+
+
+>>>>>>> branch 'main' of https://github.com/yazankhwork/GoNature-project.git
 }

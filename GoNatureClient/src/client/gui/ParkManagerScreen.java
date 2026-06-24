@@ -20,31 +20,96 @@ import java.util.ArrayList;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
-
+/**
+ * Dashboard screen for park managers in the GoNature system.
+ *
+ * This screen allows park managers to monitor park capacity,
+ * create park parameter change requests, create discount requests
+ * and generate park reports.
+ *
+ * @author Group 4
+ * @version 1.0
+ */
 public class ParkManagerScreen extends Application {
-
+	/**
+	 * Park managed by the currently logged-in park manager.
+	 */
 	private final ComboBox<String> parkCombo = new ComboBox<>();
+	/**
+	 * Displays the current maximum capacity of the park.
+	 */
 	private final Label currentCapacityLabel = new Label("Current capacity: -");
+	/**
+	 * Displays the current booking percentage allowed for reservations.
+	 */
 	private final Label currentBookingPercentLabel = new Label("Bookable percent: -");
+	/**
+	 * Displays the current allowed visit duration in hours.
+	 */
 	private final Label currentDurationLabel = new Label("Visit duration: -");
+	/**
+	 * Displays the number of visitors currently inside the park.
+	 */
 	private final Label visitorsInsideLabel = new Label("Visitors currently inside: -");
+	/**
+	 * Displays the number of free places remaining in the park.
+	 */
 	private final Label freeCapacityLabel = new Label("Free places by max capacity: -");
+	/**
+	 * Field used to enter a new park capacity value.
+	 */
 	private final TextField newCapacityField = new TextField();
+	/**
+	 * Field used to enter a new booking percentage value.
+	 */
 	private final TextField newBookingPercentField = new TextField();
+	/**
+	 * Field used to enter a new visit duration value.
+	 */
 	private final TextField newDurationField = new TextField();
+	/**
+	 * Field used to enter a discount name.
+	 */
 	private final TextField discountNameField = new TextField();
+	/**
+	 * Field used to enter a discount percentage.
+	 */
 	private final TextField discountPercentField = new TextField();
+	/**
+	 * Month selector used for report generation.
+	 */
 	private final ComboBox<Integer> reportMonthCombo = new ComboBox<>();
+	/**
+	 * Year selector used for report generation.
+	 */
 	private final ComboBox<Integer> reportYearCombo = new ComboBox<>();
+	/**
+	 * Displays status and operation messages.
+	 */
 	private final Label statusLabel = new Label();
-	
+	/**
+	 * Start date selector for discount requests.
+	 */
 	private final DatePicker startDatePicker = new DatePicker(LocalDate.now());
+	/**
+	 * End date selector for discount requests.
+	 */
 	private final DatePicker endDatePicker = new DatePicker(LocalDate.now().plusDays(7));
-
+	/**
+	 * Sends a request message to the server.
+	 *
+	 * @param m request message
+	 * @return server response message
+	 * @throws Exception if communication fails
+	 */
 	private static Message request(Message m) throws Exception {
 		return ClientSession.send(m);
 	}
-
+	/**
+	 * Creates and displays the park manager dashboard.
+	 *
+	 * @param stage primary JavaFX stage
+	 */
 	@Override
 	public void start(Stage stage) {
 		stage.setTitle("GoNature - Park Manager");
@@ -256,7 +321,9 @@ public class ParkManagerScreen extends Application {
 
 		stage.setOnCloseRequest(e -> refreshTimer.stop());
 	}
-
+	/**
+	 * Loads current park parameters and active visitor count from the server.
+	 */
 	private void loadCapacity() {
 		try {
 			Message resp = request(new Message("GET_PARK_PARAMS", parkCombo.getValue()));
@@ -294,7 +361,9 @@ public class ParkManagerScreen extends Application {
 			freeCapacityLabel.setText("Free places by max capacity: -");
 		}
 	}
-
+	/**
+	 * Loads and displays the monthly visitors report for the selected park.
+	 */
 	@SuppressWarnings("unchecked")
 	private void showMonthlyVisitorsReport() {
 		try {
@@ -336,7 +405,9 @@ public class ParkManagerScreen extends Application {
 			new Alert(Alert.AlertType.ERROR, "Connection error while loading report.").showAndWait();
 		}
 	}
-
+	/**
+	 * Loads and displays a report showing when the park was not full.
+	 */
 	@SuppressWarnings("unchecked")
 	private void showParkNotFullReport() {
 		try {

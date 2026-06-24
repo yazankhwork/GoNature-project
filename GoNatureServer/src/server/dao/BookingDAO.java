@@ -561,13 +561,7 @@ public class BookingDAO {
 
 		return list;
 	}
-	/**
-	 * Cancels a booking and returns the refund amount.
-	 *
-	 * @param bookingId booking identifier
-	 * @param visitorId visitor identifier
-	 * @return refund amount, or -1 if cancellation failed
-	 */
+	
 	public int cancelBookingAndReturnRefund(int bookingId, String visitorId) {
 		String priceQuery = "SELECT total_price FROM bookings "
 				+ "WHERE booking_id = ? "
