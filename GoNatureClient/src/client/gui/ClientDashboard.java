@@ -120,6 +120,8 @@ public class ClientDashboard extends Application implements INetworkObserver {
 	private CheckBox chkIsGuide = new CheckBox("This visit is for a group with a guide");
 	
 	private Label welcomeLabel = new Label();
+	
+	private Button btnProfile = new Button("Edit Profile");
 
 	/**
 	 * Creates and displays the main dashboard interface.
@@ -135,6 +137,7 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		
 		primaryStage.setOnCloseRequest(e -> {
 			ClientSession.removeObserver(this);
+			try { ClientSession.send(new Message("LOGOUT", loggedInVisitorId)); } catch(Exception ex) {}
 		});
 
 		welcomeLabel.setText("🌿 Welcome, " + loggedInName);
@@ -158,19 +161,18 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		visitorsInput.setEditable(true);
 		visitorsInput.setStyle("-fx-border-color: #81c784; -fx-background-radius: 5px; -fx-border-radius: 5px;");
 		
-		emailInput.setPromptText("Click 'Edit Profile' to set");
+		emailInput.setPromptText("Will be requested upon first order");
 		emailInput.setText("N/A".equals(loggedInEmail) ? "" : loggedInEmail);
 		emailInput.setEditable(false);
 		emailInput.setFocusTraversable(false);
 		emailInput.setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #a5d6a7; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-text-fill: #1b5e20; -fx-font-weight: bold;");
 		
-		phoneInput.setPromptText("Click 'Edit Profile' to set");
+		phoneInput.setPromptText("Will be requested upon first order");
 		phoneInput.setText("N/A".equals(loggedInPhone) ? "" : loggedInPhone);
 		phoneInput.setEditable(false);
 		phoneInput.setFocusTraversable(false);
 		phoneInput.setStyle("-fx-background-color: #f1f8e9; -fx-border-color: #a5d6a7; -fx-background-radius: 5px; -fx-border-radius: 5px; -fx-text-fill: #1b5e20; -fx-font-weight: bold;");
 		
-		Button btnProfile = new Button("Edit Profile");
 		btnProfile.setStyle("-fx-background-color: #8e24aa; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 5px;");
 		btnProfile.setOnAction(e -> showMyProfile());
 		
@@ -189,6 +191,7 @@ public class ClientDashboard extends Application implements INetworkObserver {
 		}
 		if (isGuest) {
 			welcomeLabel.setText("🌿 Welcome, Guest (" + loggedInVisitorId + ")");
+			btnProfile.setDisable(true); // אורח אמיתי לא עורך פרופיל עד שהוא לא מזמין!
 		}
 
 		HBox rightAlign = new HBox(10, btnProfile, btnShowPrices, btnNotifications, btnLogout);
@@ -330,6 +333,7 @@ public class ClientDashboard extends Application implements INetworkObserver {
 
 		btnLogout.setOnAction(e -> {
 			ClientSession.removeObserver(this);
+			try { ClientSession.send(new Message("LOGOUT", loggedInVisitorId)); } catch(Exception ex) {}
 			LogoutHelper.logout(primaryStage);
 		});
 
@@ -385,15 +389,88 @@ public class ClientDashboard extends Application implements INetworkObserver {
 						+ ", you can only book for 1 to " + finalMaxV + " visitors.").showAndWait();
 				return;
 			}
+			
+			// --- GUEST FIRST ORDER LOGIC ---
+			String currentEmail = emailInput.getText().trim();
+			String currentPhone = phoneInput.getText().trim();
+			
+			if (isGuest && (currentEmail.isEmpty() || currentPhone.isEmpty())) {
+				Dialog<String[]> firstOrderDialog = new Dialog<>();
+				firstOrderDialog.setTitle("First Order Registration");
+				firstOrderDialog.setHeaderText("To complete your first booking, please provide your contact details.\nThese will be saved to your permanent profile.");
 
-			String email = emailInput.getText().trim();
-			if (email.isEmpty() || !email.contains("@")) {
+				ButtonType saveBtn = new ButtonType("Save & Continue", ButtonBar.ButtonData.OK_DONE);
+				firstOrderDialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+				GridPane grid = new GridPane();
+				grid.setHgap(10);
+				grid.setVgap(10);
+				grid.setPadding(new Insets(20));
+
+				TextField emField = new TextField();
+				emField.setPromptText("example@email.com");
+				TextField phField = new TextField();
+				phField.setPromptText("10-digit phone");
+
+				grid.add(new Label("Email:"), 0, 0);
+				grid.add(emField, 1, 0);
+				grid.add(new Label("Phone:"), 0, 1);
+				grid.add(phField, 1, 1);
+
+				firstOrderDialog.getDialogPane().setContent(grid);
+
+				firstOrderDialog.setResultConverter(btn -> {
+					if (btn == saveBtn) return new String[] { emField.getText().trim(), phField.getText().trim() };
+					return null;
+				});
+
+				Optional<String[]> res = firstOrderDialog.showAndWait();
+				if (res.isPresent()) {
+					String em = res.get()[0];
+					String ph = res.get()[1];
+					
+					if (em.isEmpty() || !em.contains("@") || !ph.matches("\\d{10}")) {
+						new Alert(Alert.AlertType.ERROR, "Invalid email or phone number!").showAndWait();
+						return; // Stop booking process
+					}
+					
+					// Register to DB
+					try {
+						ArrayList<String> gData = new ArrayList<>();
+						gData.add(loggedInVisitorId);
+						gData.add(em);
+						gData.add(ph);
+						Message regMsg = ClientSession.send(new Message("REGISTER_GUEST", gData));
+						if ("REGISTERED".equals(regMsg.getData())) {
+							loggedInEmail = em;
+							loggedInPhone = ph;
+							emailInput.setText(em);
+							phoneInput.setText(ph);
+							isGuest = false; // The user is fully registered now
+							btnProfile.setDisable(false); // Enable Edit Profile
+							welcomeLabel.setText("🌿 Welcome, Guest (" + loggedInVisitorId + ") - Registered");
+						} else {
+							new Alert(Alert.AlertType.ERROR, "Failed to save profile. Please try again.").showAndWait();
+							return; // Stop booking process
+						}
+					} catch(Exception ex) {
+						new Alert(Alert.AlertType.ERROR, "Server connection lost.").showAndWait();
+						return;
+					}
+				} else {
+					return; // User cancelled the dialog, stop booking process
+				}
+			}
+			// --- END GUEST FIRST ORDER LOGIC ---
+
+			String finalEmail = emailInput.getText().trim();
+			String finalPhone = phoneInput.getText().trim();
+			if (finalEmail.isEmpty() || !finalEmail.contains("@")) {
 				new Alert(Alert.AlertType.ERROR, "Email is missing or invalid!\nPlease click 'Edit Profile' to update your contact details before booking.").showAndWait();
 				return;
 			}
 			
-			String phone = phoneInput.getText().trim();
-			if (!phone.isEmpty() && !phone.matches("\\d{10}")) {
+			if (!finalPhone.isEmpty() && !finalPhone.matches("\\d{10}")) {
 				new Alert(Alert.AlertType.ERROR, "Phone must be exactly 10 digits!\nPlease click 'Edit Profile' to update your contact details before booking.").showAndWait();
 				return;
 			}
@@ -403,17 +480,11 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			Booking b = new Booking(0, loggedInVisitorId, parkCombo.getValue(), datePicker.getValue(), parsedTime,
 					visitors, "Pending");
 
-			b.setEmail(email);
-			b.setTelephone(phone);
+			b.setEmail(finalEmail);
+			b.setTelephone(finalPhone);
 			b.setVisitorType(guideGroup ? "Guide" : "Regular Visitor");
 			b.setGuideGroup(guideGroup);
 			b.setSubscriber(isSubscriberAccount);
-
-			if (isGuest) {
-				b.setVisitorType("Regular Visitor");
-				b.setGuideGroup(false);
-				b.setSubscriber(false);
-			}
 
 			int approvedDiscount = isGuest ? 0 : getApprovedDiscountPercent(parkCombo.getValue());
 			boolean getsPrebookDiscount = !isGuest; 
@@ -433,11 +504,8 @@ public class ClientDashboard extends Application implements INetworkObserver {
 					alert.showAndWait();
 					if (alert.getResult() == ButtonType.YES) {
 						sendCommandToServer("ADD_DATA", b);
-						if (!isGuest) loadDataFromServer();
+						loadDataFromServer();
 						checkLiveCapacity();
-						if (isGuest) {
-							new Alert(Alert.AlertType.INFORMATION, "Guest Booking Complete. Please save your Confirmation Code shown!").showAndWait();
-						}
 					} else
 						responseLabel.setText("Booking cancelled.");
 				} else if ("PARTIAL_AVAILABILITY".equals(response.getCommand())) {
@@ -486,7 +554,7 @@ public class ClientDashboard extends Application implements INetworkObserver {
 							splitData.add(confirmedB);
 							splitData.add(waitlistB);
 							sendCommandToServer("ADD_SPLIT_BOOKING", splitData);
-							if (!isGuest) loadDataFromServer();
+							loadDataFromServer();
 							checkLiveCapacity();
 						} else
 							responseLabel.setText("Booking cancelled.");
@@ -494,7 +562,7 @@ public class ClientDashboard extends Application implements INetworkObserver {
 						b.setStatus("Waiting List");
 						b.setPrice(0);
 						sendCommandToServer("ADD_DATA", b);
-						if (!isGuest) loadDataFromServer();
+						loadDataFromServer();
 						checkLiveCapacity();
 					}
 				} else {
@@ -506,7 +574,7 @@ public class ClientDashboard extends Application implements INetworkObserver {
 						b.setStatus("Waiting List");
 						b.setPrice(0);
 						sendCommandToServer("ADD_DATA", b);
-						if (!isGuest) loadDataFromServer();
+						loadDataFromServer();
 						checkLiveCapacity();
 					}
 				}
@@ -618,7 +686,6 @@ public class ClientDashboard extends Application implements INetworkObserver {
 			fetchProfileContact(); 
 		});
 
-		// פה הורדנו את ה-Disable לכפתור המחירים, עכשיו האורח יוכל לראות את המחירים!
 		if (isGuest) {
 			btnNotifications.setDisable(true);
 			btnUpdate.setDisable(true);

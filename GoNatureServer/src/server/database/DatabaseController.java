@@ -105,6 +105,15 @@ public class DatabaseController {
 		return employeeDAO.getEmployeeInfo(userId);
 	}
 	/**
+	 * Checks if a guest is eligible to login or if they must use standard login.
+	 *
+	 * @param visitorId visitor identifier
+	 * @return HAS_ORDERS or ELIGIBLE
+	 */
+	public String checkGuestEligibility(String visitorId) {
+		return visitorDAO.checkGuestEligibility(visitorId);
+	}
+	/**
 	 * Registers a guest visitor in the database.
 	 *
 	 * @param visitorId visitor identifier

@@ -168,63 +168,70 @@ public class VisitorDAO {
 		return "REGISTER_FAILED";
 	}
 	/**
-	 * Registers a guest visitor in the database.
-	 * If the guest exists but has NO prior bookings, updates their info and allows entry.
-	 * If the guest exists and HAS prior bookings, blocks entry to force Visitor Login.
+	 * Checks if a guest is eligible to enter the system as a ghost guest or if they must use normal login.
+	 *
+	 * @param visitorId guest identifier
+	 * @return HAS_ORDERS, ELIGIBLE
+	 */
+	public String checkGuestEligibility(String visitorId) {
+		String checkVisitor = "SELECT visitor_id FROM visitors WHERE visitor_id = ?";
+		try (PreparedStatement checkStmt = connection.prepareStatement(checkVisitor)) {
+			checkStmt.setString(1, visitorId);
+			if (checkStmt.executeQuery().next()) {
+				// User exists in visitors! Do they have orders?
+				boolean hasOrders = false;
+				String checkOrders = "SELECT booking_id FROM bookings WHERE visitor_id = ? LIMIT 1";
+				try (PreparedStatement orderStmt = connection.prepareStatement(checkOrders)) {
+					orderStmt.setString(1, visitorId);
+					if (orderStmt.executeQuery().next()) hasOrders = true;
+				}
+				if (!hasOrders) {
+					String checkWL = "SELECT waiting_id FROM waitinglist WHERE visitor_id = ? LIMIT 1";
+					try (PreparedStatement wlStmt = connection.prepareStatement(checkWL)) {
+						wlStmt.setString(1, visitorId);
+						if (wlStmt.executeQuery().next()) hasOrders = true;
+					}
+				}
+				return hasOrders ? "HAS_ORDERS" : "ELIGIBLE";
+			}
+		} catch (Exception e) {}
+		
+		return "ELIGIBLE"; // Not in the database at all -> Eligible!
+	}
+	/**
+	 * Registers a guest visitor in the database so they can log in normally next time.
+	 * This is only called when they make their FIRST ORDER.
 	 *
 	 * @param visitorId guest identifier
 	 * @param email guest email address
 	 * @param phone guest phone number
-	 * @return ALREADY_EXISTS if has bookings, REGISTERED if success/updated, FAILED otherwise
+	 * @return REGISTERED if success, FAILED otherwise
 	 */
 	public String registerGuest(String visitorId, String email, String phone) {
 		String checkVisitor = "SELECT visitor_id FROM visitors WHERE visitor_id = ?";
 		try (PreparedStatement checkStmt = connection.prepareStatement(checkVisitor)) {
 			checkStmt.setString(1, visitorId);
 			if (checkStmt.executeQuery().next()) {
-				
-				// The visitor exists! Check if they have ANY bookings or waiting list entries.
-				boolean hasOrders = false;
-				String checkOrders = "SELECT booking_id FROM bookings WHERE visitor_id = ? LIMIT 1";
-				try (PreparedStatement orderStmt = connection.prepareStatement(checkOrders)) {
-					orderStmt.setString(1, visitorId);
-					if (orderStmt.executeQuery().next()) {
-						hasOrders = true;
+				// exists -> update
+				String update = "UPDATE visitors SET email = ?, phone = ?, full_name = 'Guest' WHERE visitor_id = ?";
+				try (PreparedStatement upStmt = connection.prepareStatement(update)) {
+					upStmt.setString(1, email);
+					upStmt.setString(2, phone);
+					upStmt.setString(3, visitorId);
+					if(upStmt.executeUpdate() > 0) return "REGISTERED";
+				}
+			} else {
+				// New guest, insert into DB
+				String insertQuery = "INSERT INTO visitors (visitor_id, username, password, email, phone, is_guide, full_name) VALUES (?, ?, '', ?, ?, 0, 'Guest')";
+				try (PreparedStatement insertStmt = connection.prepareStatement(insertQuery)) {
+					insertStmt.setString(1, visitorId);
+					insertStmt.setString(2, visitorId); 
+					insertStmt.setString(3, email);
+					insertStmt.setString(4, phone);
+					if (insertStmt.executeUpdate() > 0) {
+						return "REGISTERED";
 					}
 				}
-				
-				if (!hasOrders) {
-					String checkWL = "SELECT waiting_id FROM waitinglist WHERE visitor_id = ? LIMIT 1";
-					try (PreparedStatement wlStmt = connection.prepareStatement(checkWL)) {
-						wlStmt.setString(1, visitorId);
-						if (wlStmt.executeQuery().next()) {
-							hasOrders = true;
-						}
-					}
-				}
-
-				if (hasOrders) {
-					// User exists AND has orders. Force them to use Visitor Login.
-					return "ALREADY_EXISTS"; 
-				} else {
-					// User exists but is a "ghost" (no orders). Update their info and let them in!
-					updateProfile(visitorId, "Guest", email, phone);
-					return "REGISTERED";
-				}
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-
-		// New guest, insert into DB
-		String insertQuery = "INSERT INTO visitors (visitor_id, username, password, email, phone, is_guide, full_name) VALUES (?, ?, '', ?, ?, 0, 'Guest')";
-		try (PreparedStatement insertStmt = connection.prepareStatement(insertQuery)) {
-			insertStmt.setString(1, visitorId);
-			insertStmt.setString(2, visitorId); 
-			insertStmt.setString(3, email);
-			insertStmt.setString(4, phone);
-			if (insertStmt.executeUpdate() > 0) {
-				return "REGISTERED";
 			}
 		} catch (Exception e) {
 			e.printStackTrace();

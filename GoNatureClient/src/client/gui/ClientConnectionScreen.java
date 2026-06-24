@@ -5,6 +5,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -183,7 +184,6 @@ public class ClientConnectionScreen extends Application {
 		});
 
 
-		// --- לוגיקת רישום האורח החדשה בלחיצה אחת ---
 		btnGuest.setOnAction(e -> {
 			String id = visIdField.getText().trim();
 			if (!id.matches("\\d{9}")) {
@@ -192,18 +192,16 @@ public class ClientConnectionScreen extends Application {
 			}
 
 			try {
-				ArrayList<String> guestData = new ArrayList<>();
-				guestData.add(id);
-				guestData.add(""); // אימייל ריק, יעודכן ב-Edit Profile
-				guestData.add(""); // טלפון ריק, יעודכן ב-Edit Profile
-
-				Message resp = ClientSession.send(new Message("REGISTER_GUEST", guestData));
+				Message resp = ClientSession.send(new Message("GUEST_LOGIN", id));
 				String serverStatus = (String) resp.getData();
 
-				if ("ALREADY_EXISTS".equals(serverStatus)) {
+				if ("ALREADY_LOGGED_IN".equals(serverStatus)) {
+					statusLabel.setText("ID is already logged in on another device!");
+					return;
+				} else if ("HAS_ORDERS".equals(serverStatus)) {
 					statusLabel.setText("ID has previous orders! Please use 'Visitor Login'.");
 					return;
-				} else if ("REGISTERED".equals(serverStatus)) {
+				} else if ("ELIGIBLE".equals(serverStatus)) {
 					ClientDashboard.loggedInVisitorId = id;
 					ClientDashboard.loggedInName = "Guest";
 					ClientDashboard.loggedInEmail = ""; 
@@ -216,8 +214,6 @@ public class ClientConnectionScreen extends Application {
 
 					primaryStage.close();
 					new ClientDashboard().start(new Stage());
-				} else {
-					statusLabel.setText("Failed to register guest in system.");
 				}
 			} catch (Exception ex) {
 				statusLabel.setText("Server connection lost.");
@@ -246,7 +242,6 @@ public class ClientConnectionScreen extends Application {
 						return;
 					}
 					
-					// --- Guide Password Verification Logic ---
 					if (type.equals("Certified Guide")) {
 						Dialog<String> pwdDialog = new Dialog<>();
 						pwdDialog.setTitle("Guide Authentication");
@@ -285,14 +280,23 @@ public class ClientConnectionScreen extends Application {
 							Message verifyResp = ClientSession.send(new Message("VERIFY_GUIDE_PASS", verifyData));
 							if (!"VERIFY_SUCCESS".equals(verifyResp.getCommand())) {
 								statusLabel.setText("Incorrect password for Guide.");
-								return; // Halt login process
+								return; 
 							}
 						} else {
-							// User cancelled the password dialog
 							return; 
 						}
 					}
-					// --- End Guide Logic ---
+					
+					Message loginResp = ClientSession.send(new Message("LOGIN_VISITOR_ID", id));
+					String[] loginData = (String[]) loginResp.getData();
+					if ("ALREADY_LOGGED_IN".equals(loginData[0])) {
+						statusLabel.setText("ID is already logged in on another device!");
+						return;
+					}
+					if (!loginData[0].startsWith("LOGIN_SUCCESS")) {
+						statusLabel.setText("ID not found. Please 'Continue as Guest'.");
+						return;
+					}
 
 					ClientDashboard.loggedInVisitorId = id;
 					ClientDashboard.loggedInName = name;

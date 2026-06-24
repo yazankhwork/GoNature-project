@@ -272,17 +272,14 @@ public class GoNatureServer extends AbstractServer {
 			
 			case "LOGIN_VISITOR_ID": {
 				String visitorId = (String) data;
-				String[] loginRes = dbController.loginVisitorById(visitorId);
-
-				if (loginRes[0].startsWith("LOGIN_SUCCESS")) {
-					if (loggedInUsers.containsKey(visitorId)) {
-						response = new Message("LOGIN_RESPONSE", new String[] { "ALREADY_LOGGED_IN", null, null, null });
-					} else {
+				if (loggedInUsers.containsKey(visitorId)) {
+					response = new Message("LOGIN_RESPONSE", new String[] { "ALREADY_LOGGED_IN", null, null, null });
+				} else {
+					String[] loginRes = dbController.loginVisitorById(visitorId);
+					if (loginRes[0].startsWith("LOGIN_SUCCESS")) {
 						loggedInUsers.put(visitorId, client);
 						client.setInfo("userId", visitorId);
-						response = new Message("LOGIN_RESPONSE", loginRes);
 					}
-				} else {
 					response = new Message("LOGIN_RESPONSE", loginRes);
 				}
 				break;
@@ -304,6 +301,21 @@ public class GoNatureServer extends AbstractServer {
 					}
 				} else {
 					response = new Message("LOGIN_RESPONSE", empRes);
+				}
+				break;
+			}
+			
+			case "GUEST_LOGIN": {
+				String visitorId = (String) data;
+				if (loggedInUsers.containsKey(visitorId)) {
+					response = new Message("GUEST_LOGIN_RESPONSE", "ALREADY_LOGGED_IN");
+				} else {
+					String status = dbController.checkGuestEligibility(visitorId);
+					if ("ELIGIBLE".equals(status)) {
+						loggedInUsers.put(visitorId, client);
+						client.setInfo("userId", visitorId);
+					}
+					response = new Message("GUEST_LOGIN_RESPONSE", status);
 				}
 				break;
 			}
